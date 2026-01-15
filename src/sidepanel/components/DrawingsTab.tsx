@@ -1,8 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'preact/hooks'
-import type { Drawing, DisciplineMap } from '@/types'
+import type { Drawing, DisciplineMap, StatusColor } from '@/types'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
 import { SearchInput } from './SearchInput'
+import { StatusDot } from './StatusDot'
+import { ContextMenu } from './ContextMenu'
+import { RecentsSection } from './RecentsSection'
+import { FavoritesSection } from './FavoritesSection'
+import { useStatusColors } from '../hooks/useStatusColors'
+import { useRecents } from '../hooks/useRecents'
+import { useFavorites } from '../hooks/useFavorites'
 
 interface DrawingsTabProps {
   projectId: string
@@ -35,6 +42,14 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   const [lastCaptureCount, setLastCaptureCount] = useState<number | null>(null)
   const [expandedDisciplines, setExpandedDisciplines] = useState<Set<string>>(new Set())
   const [allExpanded, setAllExpanded] = useState(false)
+
+  // Status colors and recents hooks
+  const { colors: statusColors, cycleColor } = useStatusColors(projectId)
+  const { recents, addRecent } = useRecents(projectId)
+  const { folders, addDrawingToFolder, getAllFavoriteDrawings } = useFavorites()
+  
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; drawing: Drawing } | null>(null)
 
   // Load cached data
   useEffect(() => {
@@ -250,6 +265,11 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
 
   const handleDrawingClick = useCallback(async (drawing: Drawing) => {
     try {
+      // Add to recents first (optimistic update)
+      if (drawing.num) {
+        await addRecent(drawing.num)
+      }
+      
       const openInBackground = await StorageService.getPreferences<boolean>(
         PREFERENCE_KEYS.openInBackground,
         false
@@ -267,7 +287,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     } catch (error) {
       console.error('Failed to open drawing:', error)
     }
-  }, [projectId])
+  }, [projectId, addRecent])
 
   const toggleDiscipline = useCallback((name: string) => {
     setExpandedDisciplines(prev => {
@@ -369,6 +389,25 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
+          {/* Favorites Section - Always show, even when empty */}
+          <FavoritesSection
+            folders={folders || []}
+            drawings={drawings}
+            projectId={projectId}
+            onDrawingClick={handleDrawingClick}
+          />
+
+          {/* Recents Section */}
+          {recents.length > 0 && (
+            <RecentsSection
+              recents={recents}
+              drawings={drawings}
+              projectId={projectId}
+              onDrawingClick={handleDrawingClick}
+            />
+          )}
+
+          {/* Discipline Groups */}
           {groupedDrawings.map(({ name, drawings: groupDrawings }) => {
             const isExpanded = expandedDisciplines.has(name) || searchQuery.trim() !== ''
             const colorClass = getDisciplineColor(name)
@@ -400,20 +439,58 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                 {/* Drawings in this discipline */}
                 {isExpanded && (
                   <div className="bg-white dark:bg-gray-900">
-                    {groupDrawings.map(drawing => (
-                      <div
-                        key={drawing.id}
-                        onClick={() => handleDrawingClick(drawing)}
-                        className="px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group"
-                      >
-                        <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium min-w-[70px] group-hover:text-blue-800 dark:group-hover:text-blue-300">
-                          {drawing.num}
-                        </span>
-                        <span className="text-sm text-gray-600 dark:text-gray-300 truncate flex-1 group-hover:text-gray-800 dark:group-hover:text-gray-100">
-                          {drawing.title}
-                        </span>
-                      </div>
-                    ))}
+                    {groupDrawings.map(drawing => {
+                      const statusColor: StatusColor | undefined = statusColors[drawing.num]
+                      const isFavorite = getAllFavoriteDrawings().has(drawing.num)
+                      const rowColorClasses: Record<StatusColor, string> = {
+                        green: 'bg-green-50 dark:bg-green-900/20 border-l-2 border-green-500',
+                        red: 'bg-red-50 dark:bg-red-900/20 border-l-2 border-red-500',
+                        yellow: 'bg-yellow-50 dark:bg-yellow-900/20 border-l-2 border-yellow-500',
+                        blue: 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500',
+                        orange: 'bg-orange-50 dark:bg-orange-900/20 border-l-2 border-orange-500',
+                        pink: 'bg-pink-50 dark:bg-pink-900/20 border-l-2 border-pink-500',
+                      }
+                      
+                      return (
+                        <div
+                          key={drawing.id}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.stopPropagation()
+                            if (e.dataTransfer) {
+                              e.dataTransfer.setData("text/plain", drawing.num)
+                              e.dataTransfer.effectAllowed = "copy"
+                            }
+                          }}
+                          onClick={() => handleDrawingClick(drawing)}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setContextMenu({ x: e.clientX, y: e.clientY, drawing })
+                          }}
+                          className={`px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group ${
+                            statusColor ? rowColorClasses[statusColor] : ''
+                          }`}
+                        >
+                          <StatusDot
+                            color={statusColor}
+                            onClick={() => cycleColor(drawing.num)}
+                            className="mr-1"
+                          />
+                          <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium min-w-[70px] group-hover:text-blue-800 dark:group-hover:text-blue-300">
+                            {drawing.num}
+                          </span>
+                          <span className="text-sm text-gray-600 dark:text-gray-300 truncate flex-1 group-hover:text-gray-800 dark:group-hover:text-gray-100">
+                            {drawing.title}
+                          </span>
+                          {isFavorite && (
+                            <span className="text-yellow-500 dark:text-yellow-400 text-xs" title="In favorites">
+                              ★
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -425,6 +502,40 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             {filteredDrawings.length} of {drawings.length} drawings
           </div>
         </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+        >
+          <div className="py-1">
+            {folders.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                No folders. Create one in Settings.
+              </div>
+            ) : (
+              folders.map(folder => (
+                <button
+                  key={folder.id}
+                  onClick={async () => {
+                    await addDrawingToFolder(folder.id, contextMenu.drawing.num)
+                    setContextMenu(null)
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <span className="text-yellow-500">📁</span>
+                  <span>{folder.name}</span>
+                  {folder.drawings.includes(contextMenu.drawing.num) && (
+                    <span className="ml-auto text-xs text-gray-400">✓</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </ContextMenu>
       )}
     </div>
   )

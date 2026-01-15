@@ -7,6 +7,8 @@ import { DrawingsTab } from './components/DrawingsTab'
 import { RFIsTab } from './components/RFIsTab'
 import { CostTab } from './components/CostTab'
 import { ProjectSelector } from './components/ProjectSelector'
+import { CommandPalette } from './components/CommandPalette'
+import { FavoritesProvider } from './contexts/FavoritesContext'
 
 const TABS: TabInfo[] = [
   { id: 'drawings', label: 'Drawings', icon: '📐' },
@@ -201,30 +203,34 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      <Header 
-        onPopOut={handlePopOut} 
-        currentProjectId={currentProjectId}
-      />
-      
-      {/* Global Project Selector (shown when not on Procore tab) */}
-      {!isProcoreTab && projects.length > 0 && (
-        <ProjectSelector
-          projects={projects}
+    <FavoritesProvider projectId={currentProjectId}>
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+        <Header 
+          onPopOut={handlePopOut} 
           currentProjectId={currentProjectId}
-          onProjectChange={handleProjectChange}
         />
-      )}
+        
+        {/* Global Project Selector (shown when not on Procore tab) */}
+        {!isProcoreTab && projects.length > 0 && (
+          <ProjectSelector
+            projects={projects}
+            currentProjectId={currentProjectId}
+            onProjectChange={handleProjectChange}
+          />
+        )}
 
-      <TabBar 
-        tabs={TABS} 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
-      />
+        <TabBar 
+          tabs={TABS} 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab} 
+        />
 
-      <main className="flex-1 overflow-hidden relative" style={{ zIndex: 1 }}>
-        {renderActiveTab()}
-      </main>
-    </div>
+        <main className="flex-1 overflow-hidden relative" style={{ zIndex: 1 }}>
+          {renderActiveTab()}
+        </main>
+
+        <CommandPalette projectId={currentProjectId} />
+      </div>
+    </FavoritesProvider>
   )
 }

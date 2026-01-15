@@ -92,3 +92,46 @@ export interface ExtensionMessage<T = unknown> {
   type: MessageType
   payload?: T
 }
+
+// ============================================
+// STATUS COLORS
+// ============================================
+
+export type StatusColor = 'green' | 'red' | 'yellow' | 'blue' | 'orange' | 'pink'
+
+export interface DrawingStatusColors {
+  [drawingNum: string]: StatusColor
+}
+
+// ============================================
+// RECENTS
+// ============================================
+
+export type RecentsList = string[] // Array of drawing numbers
+
+// ============================================
+// FAVORITES
+// ============================================
+
+export interface FavoriteFolder {
+  id: number
+  name: string
+  drawings: string[] // Array of drawing numbers
+}
+
+export interface FavoritesData {
+  folders: FavoriteFolder[]
+}
+
+// ============================================
+// COMMAND PALETTE
+// ============================================
+
+export interface CommandPaletteResult {
+  drawing: Drawing
+  discipline: string
+  isFavorite: boolean
+  isRecent: boolean
+}
+
+export type CommandPaletteFilter = 'all' | 'favorites' | 'discipline' | 'recents'

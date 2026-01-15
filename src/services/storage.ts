@@ -15,7 +15,12 @@ import type {
   Commitment, 
   Project, 
   ProjectCache,
-  DisciplineMap 
+  DisciplineMap,
+  StatusColor,
+  DrawingStatusColors,
+  RecentsList,
+  FavoriteFolder,
+  FavoritesData
 } from '@/types'
 
 // Create separate stores for each data type
@@ -30,6 +35,9 @@ const drawingKey = (projectId: string) => `drawings_${projectId}`
 const rfiKey = (projectId: string) => `rfis_${projectId}`
 const commitmentKey = (projectId: string) => `commitments_${projectId}`
 const disciplineMapKey = (projectId: string) => `discipline_map_${projectId}`
+const statusColorsKey = (projectId: string) => `status_colors_${projectId}`
+const recentsKey = (projectId: string) => `recents_${projectId}`
+const favoritesKey = (projectId: string) => `favorites_${projectId}`
 
 export const StorageService = {
   // ============================================
@@ -200,6 +208,128 @@ export const StorageService = {
     await clear(rfisStore)
     await clear(commitmentsStore)
     await clear(projectsStore)
+  },
+
+  // ============================================
+  // STATUS COLORS
+  // ============================================
+  
+  async getStatusColors(projectId: string): Promise<DrawingStatusColors> {
+    if (!projectId) return {}
+    const data = await get<DrawingStatusColors>(statusColorsKey(projectId), preferencesStore)
+    return data ?? {}
+  },
+
+  async saveStatusColors(projectId: string, colors: DrawingStatusColors): Promise<void> {
+    if (!projectId) return
+    await set(statusColorsKey(projectId), colors, preferencesStore)
+  },
+
+  async setDrawingStatusColor(projectId: string, drawingNum: string, color: StatusColor | null): Promise<void> {
+    if (!projectId) return
+    const colors = await this.getStatusColors(projectId)
+    if (color) {
+      colors[drawingNum] = color
+    } else {
+      delete colors[drawingNum]
+    }
+    await this.saveStatusColors(projectId, colors)
+  },
+
+  // ============================================
+  // RECENTS
+  // ============================================
+  
+  async getRecents(projectId: string): Promise<RecentsList> {
+    if (!projectId) return []
+    const data = await get<RecentsList>(recentsKey(projectId), preferencesStore)
+    return data ?? []
+  },
+
+  async saveRecents(projectId: string, recents: RecentsList): Promise<void> {
+    if (!projectId) return
+    await set(recentsKey(projectId), recents, preferencesStore)
+  },
+
+  async addRecent(projectId: string, drawingNum: string): Promise<void> {
+    if (!projectId || !drawingNum) return
+    const recents = await this.getRecents(projectId)
+    // Remove if already exists (deduplication)
+    const filtered = recents.filter(num => num !== drawingNum)
+    // Add to front
+    const updated = [drawingNum, ...filtered]
+    // Limit to 5 items (like v1)
+    const limited = updated.slice(0, 5)
+    await this.saveRecents(projectId, limited)
+  },
+
+  // ============================================
+  // FAVORITES
+  // ============================================
+  
+  async getFavorites(projectId: string): Promise<FavoritesData> {
+    if (!projectId) return { folders: [] }
+    const data = await get<FavoritesData>(favoritesKey(projectId), preferencesStore)
+    return data ?? { folders: [] }
+  },
+
+  async saveFavorites(projectId: string, favorites: FavoritesData): Promise<void> {
+    if (!projectId) return
+    await set(favoritesKey(projectId), favorites, preferencesStore)
+  },
+
+  async addFolder(projectId: string, name: string): Promise<FavoriteFolder> {
+    if (!projectId) throw new Error('No project selected')
+    const favorites = await this.getFavorites(projectId)
+    const newFolder: FavoriteFolder = {
+      id: Date.now(), // Simple timestamp-based ID (like v1)
+      name: name.trim(),
+      drawings: []
+    }
+    favorites.folders.push(newFolder)
+    await this.saveFavorites(projectId, favorites)
+    return newFolder
+  },
+
+  async removeFolder(projectId: string, folderId: number): Promise<void> {
+    if (!projectId) return
+    const favorites = await this.getFavorites(projectId)
+    favorites.folders = favorites.folders.filter(f => f.id !== folderId)
+    await this.saveFavorites(projectId, favorites)
+  },
+
+  async addDrawingToFolder(projectId: string, folderId: number, drawingNum: string): Promise<boolean> {
+    if (!projectId) return false
+    const favorites = await this.getFavorites(projectId)
+    const folder = favorites.folders.find(f => f.id === folderId)
+    if (!folder) return false
+    
+    // Check if already in folder
+    if (folder.drawings.includes(drawingNum)) return false
+    
+    folder.drawings.push(drawingNum)
+    await this.saveFavorites(projectId, favorites)
+    return true
+  },
+
+  async removeDrawingFromFolder(projectId: string, folderId: number, drawingNum: string): Promise<void> {
+    if (!projectId) return
+    const favorites = await this.getFavorites(projectId)
+    const folder = favorites.folders.find(f => f.id === folderId)
+    if (!folder) return
+    
+    folder.drawings = folder.drawings.filter(num => num !== drawingNum)
+    await this.saveFavorites(projectId, favorites)
+  },
+
+  async getAllFavoriteDrawings(projectId: string): Promise<Set<string>> {
+    if (!projectId) return new Set()
+    const favorites = await this.getFavorites(projectId)
+    const set = new Set<string>()
+    favorites.folders.forEach(f => {
+      f.drawings.forEach(d => set.add(d))
+    })
+    return set
   },
 
   // Export for debugging

@@ -7,8 +7,10 @@
 
 import { useState, useEffect, useRef } from 'preact/hooks'
 import { useTheme } from '../contexts/ThemeContext'
+import { useFavorites } from '../hooks/useFavorites'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
+import { FolderInput } from './FolderInput'
 
 interface SettingsProps {
   isOpen: boolean
@@ -19,7 +21,10 @@ interface SettingsProps {
 
 export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: SettingsProps) {
   const { theme, setTheme } = useTheme()
+  const { folders, addFolder, removeFolder, addDrawingToFolder, isLoading: favoritesLoading } = useFavorites()
   const [openInBackground, setOpenInBackground] = useState(false)
+  const [showFolderInput, setShowFolderInput] = useState(false)
+  const [dragOverFolderId, setDragOverFolderId] = useState<number | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   
   // Scan state
@@ -153,6 +158,21 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
       console.error('Failed to save preference:', error)
       // Revert on error
       setOpenInBackground(!checked)
+    }
+  }
+
+  const handleFolderSubmit = async (name: string) => {
+    try {
+      await addFolder(name)
+      setShowFolderInput(false)
+    } catch (error) {
+      console.error('Failed to create folder:', error)
+    }
+  }
+
+  const handleRemoveFolder = async (folderId: number) => {
+    if (confirm('Delete this folder? Drawings will remain but folder will be removed.')) {
+      await removeFolder(folderId)
     }
   }
 
@@ -377,6 +397,81 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
             When enabled, links open without switching tabs
           </div>
         </div>
+
+        {/* Favorites Section */}
+        {currentProjectId && (
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+            <div className="px-3 mb-2">
+              <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                Favorites
+              </h3>
+            </div>
+            
+            {showFolderInput ? (
+              <FolderInput
+                onSubmit={handleFolderSubmit}
+                onCancel={() => setShowFolderInput(false)}
+              />
+            ) : (
+              <button
+                onClick={() => setShowFolderInput(true)}
+                className="w-full px-3 py-2 text-left text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+              >
+                <span>+</span>
+                <span>New Folder</span>
+              </button>
+            )}
+
+            {!favoritesLoading && folders.length > 0 && (
+              <div className="mt-2 max-h-48 overflow-y-auto">
+                {folders.map(folder => (
+                  <div
+                    key={folder.id}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setDragOverFolderId(folder.id)
+                    }}
+                    onDragLeave={() => setDragOverFolderId(null)}
+                    onDrop={async (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setDragOverFolderId(null)
+                      const drawingNum = e.dataTransfer?.getData("text/plain")
+                      if (drawingNum) {
+                        await addDrawingToFolder(folder.id, drawingNum)
+                      }
+                    }}
+                    className={`px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between group transition-colors ${
+                      dragOverFolderId === folder.id ? 'bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 dark:border-blue-400' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-yellow-500">📁</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{folder.name}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        ({folder.drawings.length})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFolder(folder.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-xs px-2"
+                      title="Delete folder"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!favoritesLoading && folders.length === 0 && !showFolderInput && (
+              <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                No folders yet. Create one to organize your favorite drawings.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
