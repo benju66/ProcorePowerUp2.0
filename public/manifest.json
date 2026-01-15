@@ -44,6 +44,12 @@
       "js": ["content.js"],
       "world": "ISOLATED",
       "run_at": "document_start"
+    },
+    {
+      "matches": ["https://*.procore.com/*"],
+      "js": ["overlay.js"],
+      "world": "ISOLATED",
+      "run_at": "document_idle"
     }
   ]
 }

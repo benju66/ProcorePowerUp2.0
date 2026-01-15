@@ -4,12 +4,20 @@ import { useCommandPalette } from '../hooks/useCommandPalette'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
 import type { CommandPaletteResult } from '@/types'
+import type { CommandPaletteDataProvider } from '@/types/command-palette'
 
 interface CommandPaletteProps {
   projectId: string | null
+  dataProvider?: CommandPaletteDataProvider
+  /**
+   * Whether to use createPortal for rendering.
+   * Set to false when rendering in Shadow DOM (overlay).
+   * Defaults to true for side panel usage.
+   */
+  usePortal?: boolean
 }
 
-export function CommandPalette({ projectId }: CommandPaletteProps) {
+export function CommandPalette({ projectId, dataProvider, usePortal = true }: CommandPaletteProps) {
   const {
     isOpen,
     searchQuery,
@@ -20,7 +28,7 @@ export function CommandPalette({ projectId }: CommandPaletteProps) {
     open,
     close,
     handleKeyDown,
-  } = useCommandPalette(projectId)
+  } = useCommandPalette(projectId, dataProvider)
 
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -33,29 +41,8 @@ export function CommandPalette({ projectId }: CommandPaletteProps) {
     }
   }, [isOpen])
 
-  // Global keyboard shortcut (Alt+P) - works when side panel has focus
-  useEffect(() => {
-    function handleGlobalKeyDown(e: KeyboardEvent) {
-      // Don't trigger in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return
-      }
-      
-      if (e.altKey && e.code === 'KeyP') {
-        e.preventDefault()
-        if (isOpen) {
-          close()
-        } else {
-          open()
-        }
-      }
-    }
-    
-    document.addEventListener('keydown', handleGlobalKeyDown)
-    return () => document.removeEventListener('keydown', handleGlobalKeyDown)
-  }, [isOpen, open, close])
-
   // Listen for OPEN_COMMAND_PALETTE message from background script
+  // (Kept for backward compatibility - Alt+P now triggers overlay, not side panel)
   useEffect(() => {
     const handleMessage = (message: { type: string }) => {
       if (message.type === 'OPEN_COMMAND_PALETTE') {
@@ -63,17 +50,8 @@ export function CommandPalette({ projectId }: CommandPaletteProps) {
       }
     }
     
-    const handleCustomEvent = () => {
-      open()
-    }
-    
     chrome.runtime.onMessage.addListener(handleMessage)
-    window.addEventListener('open-command-palette', handleCustomEvent)
-    
-    return () => {
-      chrome.runtime.onMessage.removeListener(handleMessage)
-      window.removeEventListener('open-command-palette', handleCustomEvent)
-    }
+    return () => chrome.runtime.onMessage.removeListener(handleMessage)
   }, [open])
 
   // Handle keyboard navigation
@@ -127,8 +105,9 @@ export function CommandPalette({ projectId }: CommandPaletteProps) {
 
   let resultIndex = 0
 
-  return createPortal(
+  const paletteContent = (
     <div
+      data-pp-overlay
       className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[15vh]"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -222,7 +201,14 @@ export function CommandPalette({ projectId }: CommandPaletteProps) {
           </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   )
+
+  // Use portal for side panel, direct render for Shadow DOM overlay
+  if (usePortal && typeof document !== 'undefined') {
+    return createPortal(paletteContent, document.body)
+  }
+  
+  // Direct render (for Shadow DOM overlay)
+  return paletteContent
 }

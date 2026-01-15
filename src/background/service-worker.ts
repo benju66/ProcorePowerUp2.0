@@ -645,6 +645,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  // Handle GET_PROJECT_DATA from content script (for overlay command palette)
+  if (message.action === 'GET_PROJECT_DATA') {
+    const projectId = message.projectId as string | undefined
+    if (!projectId) {
+      sendResponse({ success: false, error: 'No project ID provided' })
+      return true
+    }
+    
+    (async () => {
+      try {
+        const [drawings, disciplineMap, favorites, recents] = await Promise.all([
+          StorageService.getDrawings(projectId),
+          StorageService.getDisciplineMap(projectId),
+          StorageService.getAllFavoriteDrawings(projectId),
+          StorageService.getRecents(projectId),
+        ])
+        
+        sendResponse({
+          success: true,
+          drawings,
+          disciplineMap,
+          favorites: Array.from(favorites), // Convert Set to Array for JSON serialization
+          recents,
+        })
+      } catch (error) {
+        console.error('PP Background: Error getting project data:', error)
+        sendResponse({ 
+          success: false, 
+          error: error instanceof Error ? error.message : String(error) 
+        })
+      }
+    })()
+    
+    return true // Indicates we will send response asynchronously
+  }
+
   // Handle OPEN_COMMAND_PALETTE from content script
   if (message.action === 'OPEN_COMMAND_PALETTE') {
     (async () => {

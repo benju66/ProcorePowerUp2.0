@@ -219,12 +219,11 @@ function setupKeyboardShortcut(): void {
       toggleSidePanel()
     }
     
-    // Alt+P to open command palette
+    // Alt+P to toggle command palette overlay
     if (e.altKey && e.code === 'KeyP') {
       e.preventDefault()
-      chrome.runtime.sendMessage({ action: 'OPEN_COMMAND_PALETTE' }).catch((error) => {
-        console.error('PP: Failed to send OPEN_COMMAND_PALETTE message:', error)
-      })
+      // Dispatch custom event for overlay to listen
+      window.dispatchEvent(new CustomEvent('pp-toggle-overlay'))
     }
   })
 }

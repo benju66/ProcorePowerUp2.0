@@ -135,3 +135,6 @@ export interface CommandPaletteResult {
 }
 
 export type CommandPaletteFilter = 'all' | 'favorites' | 'discipline' | 'recents'
+
+// Export CommandPaletteDataProvider type
+export type { CommandPaletteDataProvider } from './command-palette'

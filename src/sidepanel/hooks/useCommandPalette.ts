@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
-import { useFavorites } from './useFavorites'
-import { useRecents } from './useRecents'
 import { StorageService } from '@/services'
-import type { Drawing, CommandPaletteResult } from '@/types'
+import type { Drawing, CommandPaletteResult, DisciplineMap, RecentsList } from '@/types'
+import type { CommandPaletteDataProvider } from '@/types/command-palette'
 
 // Fuzzy match helper (from v1)
 function fuzzyMatch(text: string, pattern: string): boolean {
@@ -19,15 +18,90 @@ function fuzzyMatch(text: string, pattern: string): boolean {
   return patternIdx === patternLower.length
 }
 
-export function useCommandPalette(projectId: string | null) {
-  const { getAllFavoriteDrawings } = useFavorites()
-  const { recents } = useRecents(projectId)
+/**
+ * Default data provider that uses StorageService directly
+ * Used by the side panel implementation
+ */
+class DefaultDataProvider implements CommandPaletteDataProvider {
+  async getDrawings(projectId: string): Promise<Drawing[]> {
+    return StorageService.getDrawings(projectId)
+  }
+
+  async getDisciplineMap(projectId: string): Promise<DisciplineMap> {
+    return StorageService.getDisciplineMap(projectId)
+  }
+
+  async getAllFavoriteDrawings(projectId: string): Promise<Set<string>> {
+    return StorageService.getAllFavoriteDrawings(projectId)
+  }
+
+  async getRecents(projectId: string): Promise<RecentsList> {
+    return StorageService.getRecents(projectId)
+  }
+}
+
+const defaultDataProvider = new DefaultDataProvider()
+
+export function useCommandPalette(
+  projectId: string | null,
+  dataProvider?: CommandPaletteDataProvider
+) {
+  // Use provided data provider or default to StorageService
+  const provider = dataProvider || defaultDataProvider
+  
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<CommandPaletteResult[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
   const searchCancelledRef = useRef(false)
+  
+  // State for recents and favorites (loaded from provider)
+  // These are kept in state for potential future use, but currently
+  // the search function fetches fresh data each time for accuracy
+  const [, setRecents] = useState<RecentsList>([])
+  const [, setFavoriteSet] = useState<Set<string>>(new Set())
+  
+  // Load recents and favorites when project changes
+  useEffect(() => {
+    if (!projectId) {
+      setRecents([])
+      setFavoriteSet(new Set())
+      return
+    }
+    
+    let cancelled = false
+    
+    async function loadData() {
+      // TypeScript guard: projectId is checked above, but we need to ensure it's not null
+      const pid = projectId
+      if (!pid) return
+      
+      try {
+        const [loadedRecents, loadedFavorites] = await Promise.all([
+          provider.getRecents(pid),
+          provider.getAllFavoriteDrawings(pid),
+        ])
+        
+        if (!cancelled) {
+          setRecents(loadedRecents)
+          setFavoriteSet(loadedFavorites)
+        }
+      } catch (error) {
+        console.error('Failed to load command palette data:', error)
+        if (!cancelled) {
+          setRecents([])
+          setFavoriteSet(new Set())
+        }
+      }
+    }
+    
+    loadData()
+    
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, provider])
 
   // Perform search when query changes
   useEffect(() => {
@@ -43,11 +117,18 @@ export function useCommandPalette(projectId: string | null) {
       setIsSearching(true)
       
       try {
-        const [drawings, disciplineMap, favoriteSet] = await Promise.all([
-          StorageService.getDrawings(projectId!),
-          StorageService.getDisciplineMap(projectId!),
-          StorageService.getAllFavoriteDrawings(projectId!),
+        const [drawings, disciplineMap, favorites] = await Promise.all([
+          provider.getDrawings(projectId!),
+          provider.getDisciplineMap(projectId!),
+          provider.getAllFavoriteDrawings(projectId!),
         ])
+        
+        // Update favorite set state
+        setFavoriteSet(favorites)
+        
+        // Reload recents to ensure they're up to date
+        const currentRecents = await provider.getRecents(projectId!)
+        setRecents(currentRecents)
         
         if (searchCancelledRef.current) return
         
@@ -63,7 +144,7 @@ export function useCommandPalette(projectId: string | null) {
           filter = 'discipline'
           cleanQuery = cleanQuery.substring(1).trim()
           disciplineFilter = cleanQuery
-        } else if (!cleanQuery && recents.length > 0) {
+        } else if (!cleanQuery && currentRecents.length > 0) {
           filter = 'recents'
         }
 
@@ -79,21 +160,21 @@ export function useCommandPalette(projectId: string | null) {
 
         // Handle recents (empty search)
         if (filter === 'recents') {
-          const recentDrawings = recents
+          const recentDrawings = currentRecents
             .map(num => drawings.find(d => d.num === num))
             .filter((d): d is Drawing => d !== undefined)
 
           results = recentDrawings.map(d => ({
             drawing: d,
             discipline: getDisciplineName(d),
-            isFavorite: favoriteSet.has(d.num),
+            isFavorite: favorites.has(d.num),
             isRecent: true,
           }))
         } else {
           // Filter drawings
           const filtered = drawings.filter(d => {
             // Favorites filter
-            if (filter === 'favorites' && !favoriteSet.has(d.num)) {
+            if (filter === 'favorites' && !favorites.has(d.num)) {
               return false
             }
 
@@ -120,8 +201,8 @@ export function useCommandPalette(projectId: string | null) {
           results = filtered.map(d => ({
             drawing: d,
             discipline: getDisciplineName(d),
-            isFavorite: favoriteSet.has(d.num),
-            isRecent: recents.includes(d.num),
+            isFavorite: favorites.has(d.num),
+            isRecent: currentRecents.includes(d.num),
           }))
 
           // Group by discipline and sort
@@ -175,7 +256,7 @@ export function useCommandPalette(projectId: string | null) {
     return () => {
       searchCancelledRef.current = true
     }
-  }, [isOpen, projectId, searchQuery, recents, getAllFavoriteDrawings])
+  }, [isOpen, projectId, searchQuery, provider])
 
   const open = useCallback(() => {
     setIsOpen(true)
