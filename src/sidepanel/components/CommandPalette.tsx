@@ -33,7 +33,7 @@ export function CommandPalette({ projectId }: CommandPaletteProps) {
     }
   }, [isOpen])
 
-  // Global keyboard shortcut (Alt+P)
+  // Global keyboard shortcut (Alt+P) - works when side panel has focus
   useEffect(() => {
     function handleGlobalKeyDown(e: KeyboardEvent) {
       // Don't trigger in input fields
@@ -54,6 +54,27 @@ export function CommandPalette({ projectId }: CommandPaletteProps) {
     document.addEventListener('keydown', handleGlobalKeyDown)
     return () => document.removeEventListener('keydown', handleGlobalKeyDown)
   }, [isOpen, open, close])
+
+  // Listen for OPEN_COMMAND_PALETTE message from background script
+  useEffect(() => {
+    const handleMessage = (message: { type: string }) => {
+      if (message.type === 'OPEN_COMMAND_PALETTE') {
+        open()
+      }
+    }
+    
+    const handleCustomEvent = () => {
+      open()
+    }
+    
+    chrome.runtime.onMessage.addListener(handleMessage)
+    window.addEventListener('open-command-palette', handleCustomEvent)
+    
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage)
+      window.removeEventListener('open-command-palette', handleCustomEvent)
+    }
+  }, [open])
 
   // Handle keyboard navigation
   useEffect(() => {

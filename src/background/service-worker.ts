@@ -645,6 +645,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  // Handle OPEN_COMMAND_PALETTE from content script
+  if (message.action === 'OPEN_COMMAND_PALETTE') {
+    (async () => {
+      const tabId = sender.tab?.id || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id
+      
+      if (!tabId) {
+        sendResponse({ success: false, error: 'No tab ID' })
+        return
+      }
+      
+      // Ensure side panel is open
+      if (!isPanelOpen(tabId)) {
+        await openSidePanel(tabId)
+        // Wait for panel to connect via port
+        await new Promise(resolve => setTimeout(resolve, 300))
+      }
+      
+      // Send message via port if available
+      const port = panelPorts.get(tabId)
+      if (port) {
+        port.postMessage({ type: 'OPEN_COMMAND_PALETTE' })
+        sendResponse({ success: true })
+      } else {
+        // Fallback: use runtime message (panel might not have connected yet)
+        // Retry a few times with delays
+        let retries = 3
+        const trySend = () => {
+          chrome.runtime.sendMessage({ type: 'OPEN_COMMAND_PALETTE' }).catch(() => {
+            if (retries > 0) {
+              retries--
+              setTimeout(trySend, 200)
+            } else {
+              console.error('PP: Failed to send OPEN_COMMAND_PALETTE to side panel after retries')
+            }
+          })
+        }
+        trySend()
+        sendResponse({ success: true })
+      }
+    })().catch((err) => {
+      console.error('PP: Error handling OPEN_COMMAND_PALETTE:', err)
+      sendResponse({ success: false, error: String(err) })
+    })
+    
+    return true
+  }
+
   // Handle other messages
   handleMessage(message, sender).then(sendResponse).catch(console.error)
   return true

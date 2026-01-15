@@ -119,6 +119,13 @@ export function App() {
         return
       }
       
+      // Handle OPEN_COMMAND_PALETTE - forward to CommandPalette component
+      if (message.type === 'OPEN_COMMAND_PALETTE') {
+        // Forward to CommandPalette via custom event (since it's in a different component)
+        window.dispatchEvent(new CustomEvent('open-command-palette'))
+        return
+      }
+      
       if (message.type === 'TAB_UPDATED') {
         const payload = message.payload as { url: string }
         const ids = extractIdsFromUrl(payload.url)
@@ -153,6 +160,19 @@ export function App() {
 
     chrome.runtime.onMessage.addListener(handleMessage)
     return () => chrome.runtime.onMessage.removeListener(handleMessage)
+  }, [])
+  
+  // Also listen for port messages
+  useEffect(() => {
+    const port = chrome.runtime.connect({ name: 'sidepanel' })
+    
+    port.onMessage.addListener((message: { type: string }) => {
+      if (message.type === 'OPEN_COMMAND_PALETTE') {
+        window.dispatchEvent(new CustomEvent('open-command-palette'))
+      }
+    })
+    
+    return () => port.disconnect()
   }, [])
 
   const handlePopOut = useCallback(async () => {

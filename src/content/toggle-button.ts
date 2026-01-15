@@ -213,10 +213,18 @@ function setupKeyboardShortcut(): void {
       return
     }
     
-    // Alt+S to toggle
+    // Alt+S to toggle side panel
     if (e.altKey && e.code === 'KeyS') {
       e.preventDefault()
       toggleSidePanel()
+    }
+    
+    // Alt+P to open command palette
+    if (e.altKey && e.code === 'KeyP') {
+      e.preventDefault()
+      chrome.runtime.sendMessage({ action: 'OPEN_COMMAND_PALETTE' }).catch((error) => {
+        console.error('PP: Failed to send OPEN_COMMAND_PALETTE message:', error)
+      })
     }
   })
 }

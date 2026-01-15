@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'preact/hooks'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'preact/hooks'
 import type { Drawing, DisciplineMap, StatusColor } from '@/types'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
@@ -43,10 +43,19 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   const [expandedDisciplines, setExpandedDisciplines] = useState<Set<string>>(new Set())
   const [allExpanded, setAllExpanded] = useState(false)
 
+  // Ref to scrollable container for drag auto-scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
   // Status colors and recents hooks
   const { colors: statusColors, cycleColor } = useStatusColors(projectId)
   const { recents, addRecent } = useRecents(projectId)
   const { folders, addDrawingToFolder, getAllFavoriteDrawings } = useFavorites()
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('[DrawingsTab] Folders:', folders)
+    console.log('[DrawingsTab] Folders length:', folders?.length)
+  }, [folders])
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; drawing: Drawing } | null>(null)
@@ -388,13 +397,14 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
           No drawings match "{searchQuery}"
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
           {/* Favorites Section - Always show, even when empty */}
           <FavoritesSection
             folders={folders || []}
             drawings={drawings}
             projectId={projectId}
             onDrawingClick={handleDrawingClick}
+            scrollContainerRef={scrollContainerRef}
           />
 
           {/* Recents Section */}
@@ -461,6 +471,9 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                               e.dataTransfer.setData("text/plain", drawing.num)
                               e.dataTransfer.effectAllowed = "copy"
                             }
+                          }}
+                          onDragEnd={() => {
+                            // Drag ended - auto-scroll will be handled by drop target
                           }}
                           onClick={() => handleDrawingClick(drawing)}
                           onContextMenu={(e) => {
