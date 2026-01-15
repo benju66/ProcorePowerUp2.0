@@ -1,0 +1,28 @@
+{
+  "name": "procore-powerup-v2",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:watch": "vite build --watch",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@preact/compat": "^18.3.1",
+    "idb-keyval": "^6.2.2",
+    "preact": "^10.27.2",
+    "react-window": "^2.2.5"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.2",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/chrome": "^0.1.33",
+    "@types/node": "^24.10.1",
+    "@types/react-window": "^2.0.0",
+    "tailwindcss": "^4.1.18",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4"
+  }
+}
