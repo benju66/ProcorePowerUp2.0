@@ -3,7 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Procore Power-Up</title>
+    <script>
+      // Apply theme immediately to prevent flash of wrong theme
+      // This runs before CSS loads, minimizing visual flash
+      (function() {
+        try {
+          // Check system preference as fallback
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+          const root = document.documentElement
+          
+          // Default to system preference
+          // ThemeProvider will load saved preference and override if needed
+          if (prefersDark) {
+            root.classList.add('dark')
+          } else {
+            root.classList.add('light')
+          }
+        } catch (e) {
+          // If matchMedia fails, default to light
+          document.documentElement.classList.add('light')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

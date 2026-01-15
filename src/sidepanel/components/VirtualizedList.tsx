@@ -25,13 +25,22 @@ export function VirtualizedList<T>({
   useEffect(() => {
     const updateHeight = () => {
       if (containerRef.current) {
-        setContainerHeight(containerRef.current.clientHeight)
+        const height = containerRef.current.clientHeight
+        // Ensure height is valid and positive
+        if (height > 0 && height < 10000) {
+          setContainerHeight(height)
+        }
       }
     }
 
-    updateHeight()
+    // Initial height calculation with a small delay to ensure layout is ready
+    requestAnimationFrame(() => {
+      updateHeight()
+    })
     
-    const observer = new ResizeObserver(updateHeight)
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(updateHeight)
+    })
     if (containerRef.current) {
       observer.observe(containerRef.current)
     }
@@ -47,15 +56,33 @@ export function VirtualizedList<T>({
   )
 
   return (
-    <div ref={containerRef} className={`flex-1 overflow-hidden ${className}`}>
-      <VirtualList
-        height={containerHeight}
-        count={items.length}
-        itemSize={itemHeight}
-        width="100%"
-      >
-        {Row}
-      </VirtualList>
+    <div 
+      ref={containerRef} 
+      className={`flex-1 overflow-hidden ${className}`} 
+      style={{ 
+        position: 'relative', 
+        zIndex: 1,
+        contain: 'layout style paint',
+        isolation: 'isolate',
+        maxHeight: '100%',
+        pointerEvents: 'auto'
+      }}
+    >
+      {containerHeight > 0 && (
+        <VirtualList
+          height={containerHeight}
+          count={items.length}
+          itemSize={itemHeight}
+          width="100%"
+          style={{ 
+            position: 'relative',
+            maxHeight: '100%',
+            overflow: 'hidden'
+          }}
+        >
+          {Row}
+        </VirtualList>
+      )}
     </div>
   )
 }

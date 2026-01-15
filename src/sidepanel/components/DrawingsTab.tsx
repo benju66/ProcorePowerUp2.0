@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'preact/hooks'
 import type { Drawing, DisciplineMap } from '@/types'
 import { StorageService } from '@/services'
+import { PREFERENCE_KEYS } from '@/types/preferences'
 import { SearchInput } from './SearchInput'
 
 interface DrawingsTabProps {
@@ -246,58 +247,26 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
       }))
   }, [filteredDrawings, disciplineMap])
 
-  // Page-based scan: send message to content script to expand & scroll
-  const handleScan = useCallback(async () => {
-    setIsScanning(true)
-    setScanStatus('Expanding disciplines...')
-    setScanPercent(0)
-    
+
+  const handleDrawingClick = useCallback(async (drawing: Drawing) => {
     try {
-      // Get active tab to send message to content script
-      const tabResponse = await chrome.runtime.sendMessage({ action: 'GET_ACTIVE_TAB' }) as { 
-        tabId?: number
-        isProcoreTab?: boolean 
-      }
+      const openInBackground = await StorageService.getPreferences<boolean>(
+        PREFERENCE_KEYS.openInBackground,
+        false
+      )
       
-      if (!tabResponse?.isProcoreTab || !tabResponse.tabId) {
-        setScanStatus('Error: Open Procore Drawings page first')
-        setIsScanning(false)
-        setTimeout(() => setScanStatus(null), 3000)
-        return
-      }
-
-      // Send scan command to content script (don't await - progress updates come via messages)
-      chrome.tabs.sendMessage(tabResponse.tabId, {
-        action: 'PAGE_SCAN',
-        scanType: 'drawings'
-      }).then((result: { success: boolean; message: string }) => {
-        if (!result.success) {
-          setScanStatus(`Error: ${result.message}`)
-          setIsScanning(false)
-          setTimeout(() => setScanStatus(null), 3000)
-        }
-        // Success is handled by SCAN_PROGRESS messages
-      }).catch((error) => {
-        console.error('Scan command failed:', error)
-        setScanStatus('Error: Could not connect to page')
-        setIsScanning(false)
-        setTimeout(() => setScanStatus(null), 3000)
-      })
-    } catch (error) {
-      console.error('Scan failed:', error)
-      setScanStatus('Error: Could not connect to page')
-      setIsScanning(false)
-      setTimeout(() => setScanStatus(null), 3000)
-    }
-  }, [])
-
-  const handleDrawingClick = useCallback((drawing: Drawing) => {
-    StorageService.getProject(projectId).then(project => {
+      const project = await StorageService.getProject(projectId)
       if (project?.drawingAreaId) {
         const url = `https://app.procore.com/${projectId}/project/drawing_areas/${project.drawingAreaId}/drawing_log/view_fullscreen/${drawing.id}`
-        chrome.runtime.sendMessage({ action: 'OPEN_TAB', url, background: false })
+        chrome.runtime.sendMessage({ 
+          action: 'OPEN_TAB', 
+          url, 
+          background: openInBackground 
+        })
       }
-    })
+    } catch (error) {
+      console.error('Failed to open drawing:', error)
+    }
   }, [projectId])
 
   const toggleDiscipline = useCallback((name: string) => {
@@ -333,8 +302,8 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     <div className="flex flex-col h-full">
       {/* Notifications */}
       {lastCaptureCount !== null && (
-        <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
-          <span className="text-green-500">✓</span>
+        <div className="px-3 py-2 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+          <span className="text-green-500 dark:text-green-400">✓</span>
           <span>Captured {lastCaptureCount} new drawing{lastCaptureCount !== 1 ? 's' : ''}</span>
         </div>
       )}
@@ -342,8 +311,8 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
       {scanStatus && (
         <div className={`px-3 py-2 border-b text-sm ${
           scanStatus.startsWith('Error') 
-            ? 'bg-red-50 border-red-200 text-red-700' 
-            : 'bg-blue-50 border-blue-200 text-blue-700'
+            ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' 
+            : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
         }`}>
           <div className="flex items-center gap-2 mb-1">
             {isScanning && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />}
@@ -351,9 +320,9 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             {isScanning && <span className="ml-auto">{drawings.length} found</span>}
           </div>
           {isScanning && (
-            <div className="w-full bg-blue-200 rounded-full h-1.5">
+            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
               <div 
-                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-300" 
                 style={{ width: `${scanPercent}%` }}
               />
             </div>
@@ -361,8 +330,8 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
         </div>
       )}
       
-      {/* Search and actions bar */}
-      <div className="p-3 border-b border-gray-200 bg-white">
+      {/* Search bar */}
+      <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div className="flex gap-2 mb-2">
           <div className="flex-1">
             <SearchInput
@@ -371,35 +340,13 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
               placeholder="Filter drawings..."
             />
           </div>
-          <button
-            onClick={handleScan}
-            disabled={isScanning}
-            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-          >
-            {isScanning ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                <span>{scanPercent}%</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Scan</span>
-              </>
-            )}
-          </button>
         </div>
         
         {/* Toolbar */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500">
-            {filteredDrawings.length} of {drawings.length} drawings
-          </span>
+        <div className="flex items-center justify-end">
           <button
             onClick={toggleExpandAll}
-            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1"
           >
             <span className={`transition-transform ${allExpanded ? 'rotate-180' : ''}`}>▼</span>
             {allExpanded ? 'Collapse All' : 'Expand All'}
@@ -409,15 +356,15 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
 
       {/* List */}
       {drawings.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-4">
+        <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 px-4">
           <p className="font-medium mb-2">No drawings found</p>
           <p className="text-sm text-center">
             Open the Drawings page in Procore,<br />
-            then click <strong>Scan</strong> to capture data.
+            then use Settings to scan and capture data.
           </p>
         </div>
       ) : filteredDrawings.length === 0 ? (
-        <div className="flex items-center justify-center h-64 text-gray-500">
+        <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           No drawings match "{searchQuery}"
         </div>
       ) : (
@@ -427,13 +374,13 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             const colorClass = getDisciplineColor(name)
             
             return (
-              <div key={name} className="border-b border-gray-100">
-                {/* Discipline Header */}
+              <div key={name} className="border-b border-gray-100 dark:border-gray-700">
+                {/* Discipline Header - STICKY */}
                 <button
                   onClick={() => toggleDiscipline(name)}
-                  className="w-full px-3 py-2 flex items-center gap-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                  className="sticky top-0 z-10 w-full px-3 py-2 flex items-center gap-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
                 >
-                  <span className={`transition-transform text-xs text-gray-400 ${isExpanded ? 'rotate-90' : ''}`}>
+                  <span className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}>
                     ▶
                   </span>
                   <span 
@@ -442,27 +389,27 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                   >
                     {name.charAt(0).toUpperCase()}
                   </span>
-                  <span className="font-medium text-sm text-gray-700 flex-1">
+                  <span className="font-medium text-sm text-gray-700 dark:text-gray-300 flex-1">
                     {name}
                   </span>
-                  <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+                  <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
                     {groupDrawings.length}
                   </span>
                 </button>
                 
                 {/* Drawings in this discipline */}
                 {isExpanded && (
-                  <div className="bg-white">
+                  <div className="bg-white dark:bg-gray-900">
                     {groupDrawings.map(drawing => (
                       <div
                         key={drawing.id}
                         onClick={() => handleDrawingClick(drawing)}
-                        className="px-3 py-2 pl-10 border-b border-gray-50 hover:bg-blue-50 cursor-pointer flex items-center gap-2 group"
+                        className="px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group"
                       >
-                        <span className="font-mono text-sm text-blue-600 font-medium min-w-[70px] group-hover:text-blue-800">
+                        <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium min-w-[70px] group-hover:text-blue-800 dark:group-hover:text-blue-300">
                           {drawing.num}
                         </span>
-                        <span className="text-sm text-gray-600 truncate flex-1 group-hover:text-gray-800">
+                        <span className="text-sm text-gray-600 dark:text-gray-300 truncate flex-1 group-hover:text-gray-800 dark:group-hover:text-gray-100">
                           {drawing.title}
                         </span>
                       </div>
@@ -474,8 +421,8 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
           })}
           
           {/* Footer stats */}
-          <div className="px-3 py-2 text-xs text-gray-400 text-center bg-gray-50">
-            {groupedDrawings.length} discipline{groupedDrawings.length !== 1 ? 's' : ''} • {drawings.length} total drawings
+          <div className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500 text-center bg-gray-50 dark:bg-gray-800">
+            {filteredDrawings.length} of {drawings.length} drawings
           </div>
         </div>
       )}

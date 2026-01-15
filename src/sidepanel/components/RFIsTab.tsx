@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'preact/hooks'
 import type { RFI } from '@/types'
 import { StorageService } from '@/services'
+import { PREFERENCE_KEYS } from '@/types/preferences'
 import { SearchInput } from './SearchInput'
 import { VirtualizedList } from './VirtualizedList'
 
@@ -87,47 +88,22 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
     )
   }, [rfis, searchQuery])
 
-  const handleScan = useCallback(async () => {
-    setIsScanning(true)
-    setScanStatus('Starting scan...')
-    setScanPercent(0)
-    
+
+  const handleRFIClick = useCallback(async (rfi: RFI) => {
     try {
-      const tabResponse = await chrome.runtime.sendMessage({ action: 'GET_ACTIVE_TAB' }) as { 
-        tabId?: number
-        isProcoreTab?: boolean 
-      }
-      
-      if (!tabResponse?.isProcoreTab || !tabResponse.tabId) {
-        setScanStatus('Error: Open Procore RFIs page first')
-        setIsScanning(false)
-        setTimeout(() => setScanStatus(null), 3000)
-        return
-      }
-
-      const result = await chrome.tabs.sendMessage(tabResponse.tabId, {
-        action: 'PAGE_SCAN',
-        scanType: 'rfis'
-      }) as { success: boolean; message: string }
-
-      if (!result.success) {
-        setScanStatus(`Error: ${result.message}`)
-        setIsScanning(false)
-        setTimeout(() => setScanStatus(null), 3000)
-      } else {
-        setScanStatus('Scanning page...')
-      }
+      const openInBackground = await StorageService.getPreferences<boolean>(
+        PREFERENCE_KEYS.openInBackground,
+        false
+      )
+      const url = `https://app.procore.com/${projectId}/project/rfi/show/${rfi.id}`
+      chrome.runtime.sendMessage({ 
+        action: 'OPEN_TAB', 
+        url, 
+        background: openInBackground 
+      })
     } catch (error) {
-      console.error('RFI scan failed:', error)
-      setScanStatus('Error: Could not connect to page')
-      setIsScanning(false)
-      setTimeout(() => setScanStatus(null), 3000)
+      console.error('Failed to open RFI:', error)
     }
-  }, [])
-
-  const handleRFIClick = useCallback((rfi: RFI) => {
-    const url = `https://app.procore.com/${projectId}/project/rfi/show/${rfi.id}`
-    chrome.runtime.sendMessage({ action: 'OPEN_TAB', url, background: false })
   }, [projectId])
 
   const renderItem = useCallback((rfi: RFI) => {
@@ -136,18 +112,18 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
     return (
       <div onClick={() => handleRFIClick(rfi)} className="list-item">
         <div className="flex items-center justify-between mb-1">
-          <span className="font-mono text-sm text-blue-600 font-medium">
+          <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium">
             RFI #{rfi.number}
           </span>
           <span className={`badge ${statusClass}`}>
             {rfi.status}
           </span>
         </div>
-        <div className="text-sm text-gray-700 truncate">
+        <div className="text-sm text-gray-700 dark:text-gray-300 truncate">
           {rfi.subject}
         </div>
         {rfi.assignee && (
-          <div className="text-xs text-gray-500 mt-0.5">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             Assigned to: {rfi.assignee}
           </div>
         )}
@@ -203,43 +179,24 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
               placeholder="Search RFIs..."
             />
           </div>
-          <button
-            onClick={handleScan}
-            disabled={isScanning}
-            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-          >
-            {isScanning ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                <span>{scanPercent}%</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Scan</span>
-              </>
-            )}
-          </button>
         </div>
         
-        <div className="flex items-center justify-between text-xs text-gray-500">
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <span>{filteredRFIs.length} of {rfis.length} RFIs</span>
           <span>{rfis.filter(r => r.status?.toLowerCase() === 'open').length} open</span>
         </div>
       </div>
 
       {rfis.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+        <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           <p className="mb-2">No RFIs cached</p>
           <p className="text-sm text-center px-4">
             Open the RFIs page in Procore,<br />
-            then click Scan to capture all RFIs.
+            then use Settings to scan and capture all RFIs.
           </p>
         </div>
       ) : filteredRFIs.length === 0 ? (
-        <div className="flex items-center justify-center h-64 text-gray-500">
+        <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           No RFIs match your search
         </div>
       ) : (

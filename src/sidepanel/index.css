@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Configure dark mode variant for Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Custom scrollbar for better UX */
 ::-webkit-scrollbar {
   width: 6px;
@@ -18,6 +21,15 @@
   background: #9ca3af;
 }
 
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
 /* Smooth transitions */
 * {
   transition-property: background-color, border-color, color;
@@ -31,6 +43,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background-color: #f9fafb;
   min-height: 100vh;
+}
+
+.dark body {
+  background-color: #111827;
 }
 
 #app {
@@ -51,18 +67,19 @@ body {
 
 /* List item hover states */
 .list-item {
-  @apply px-3 py-2 hover:bg-gray-100 cursor-pointer rounded-md;
+  @apply px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer rounded-md;
 }
 
 .list-item:active {
-  @apply bg-gray-200;
+  @apply bg-gray-200 dark:bg-gray-600;
 }
 
 /* Search input styling */
 .search-input {
-  @apply w-full px-3 py-2 text-sm border border-gray-200 rounded-lg;
-  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
-  @apply placeholder:text-gray-400;
+  @apply w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg;
+  @apply bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent;
+  @apply placeholder:text-gray-400 dark:placeholder:text-gray-400;
 }
 
 /* Badge styles */
@@ -87,5 +104,22 @@ body {
 }
 
 .badge-gray {
-  @apply bg-gray-100 text-gray-800;
+  @apply bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200;
+}
+
+/* Badge dark mode variants */
+.badge-blue {
+  @apply dark:bg-blue-900 dark:text-blue-200;
+}
+
+.badge-green {
+  @apply dark:bg-green-900 dark:text-green-200;
+}
+
+.badge-yellow {
+  @apply dark:bg-yellow-900 dark:text-yellow-200;
+}
+
+.badge-red {
+  @apply dark:bg-red-900 dark:text-red-200;
 }

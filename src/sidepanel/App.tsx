@@ -169,7 +169,7 @@ export function App() {
   const renderActiveTab = () => {
     if (!currentProjectId) {
       return (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500 text-center px-4">
+        <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 text-center px-4">
           <p className="text-lg font-medium mb-2">No Project Selected</p>
           <p className="text-sm">
             {isProcoreTab 
@@ -194,15 +194,18 @@ export function App() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <Header onPopOut={handlePopOut} />
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+      <Header 
+        onPopOut={handlePopOut} 
+        currentProjectId={currentProjectId}
+      />
       
       {/* Global Project Selector (shown when not on Procore tab) */}
       {!isProcoreTab && projects.length > 0 && (
@@ -219,7 +222,7 @@ export function App() {
         onTabChange={setActiveTab} 
       />
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden relative" style={{ zIndex: 1 }}>
         {renderActiveTab()}
       </main>
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'preact/hooks'
 import type { Commitment } from '@/types'
 import { StorageService } from '@/services'
+import { PREFERENCE_KEYS } from '@/types/preferences'
 import { SearchInput } from './SearchInput'
 import { VirtualizedList } from './VirtualizedList'
 
@@ -98,67 +99,42 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
     }), { approved: 0, pending: 0, draft: 0 })
   }, [commitments])
 
-  const handleScan = useCallback(async () => {
-    setIsScanning(true)
-    setScanStatus('Starting scan...')
-    setScanPercent(0)
-    
+
+  const handleCommitmentClick = useCallback(async (commitment: Commitment) => {
     try {
-      const tabResponse = await chrome.runtime.sendMessage({ action: 'GET_ACTIVE_TAB' }) as { 
-        tabId?: number
-        isProcoreTab?: boolean 
-      }
-      
-      if (!tabResponse?.isProcoreTab || !tabResponse.tabId) {
-        setScanStatus('Error: Open Procore Commitments page first')
-        setIsScanning(false)
-        setTimeout(() => setScanStatus(null), 3000)
-        return
-      }
-
-      const result = await chrome.tabs.sendMessage(tabResponse.tabId, {
-        action: 'PAGE_SCAN',
-        scanType: 'commitments'
-      }) as { success: boolean; message: string }
-
-      if (!result.success) {
-        setScanStatus(`Error: ${result.message}`)
-        setIsScanning(false)
-        setTimeout(() => setScanStatus(null), 3000)
-      } else {
-        setScanStatus('Scanning page...')
-      }
+      const openInBackground = await StorageService.getPreferences<boolean>(
+        PREFERENCE_KEYS.openInBackground,
+        false
+      )
+      const url = `https://app.procore.com/${projectId}/project/contracts/commitments/${commitment.id}`
+      chrome.runtime.sendMessage({ 
+        action: 'OPEN_TAB', 
+        url, 
+        background: openInBackground 
+      })
     } catch (error) {
-      console.error('Commitments scan failed:', error)
-      setScanStatus('Error: Could not connect to page')
-      setIsScanning(false)
-      setTimeout(() => setScanStatus(null), 3000)
+      console.error('Failed to open commitment:', error)
     }
-  }, [])
-
-  const handleCommitmentClick = useCallback((commitment: Commitment) => {
-    const url = `https://app.procore.com/${projectId}/project/contracts/commitments/${commitment.id}`
-    chrome.runtime.sendMessage({ action: 'OPEN_TAB', url, background: false })
   }, [projectId])
 
   const renderItem = useCallback((commitment: Commitment) => {
     return (
       <div onClick={() => handleCommitmentClick(commitment)} className="list-item">
         <div className="flex items-center justify-between mb-1">
-          <span className="font-mono text-sm text-blue-600 font-medium">
+          <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium">
             #{commitment.number}
           </span>
           {commitment.approved_amount !== undefined && (
-            <span className="text-sm font-medium text-green-600">
+            <span className="text-sm font-medium text-green-600 dark:text-green-400">
               {formatCurrency(commitment.approved_amount)}
             </span>
           )}
         </div>
-        <div className="text-sm text-gray-700 truncate">
+        <div className="text-sm text-gray-700 dark:text-gray-300 truncate">
           {commitment.title}
         </div>
         {(commitment.vendor_name || commitment.vendor) && (
-          <div className="text-xs text-gray-500 mt-0.5">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {commitment.vendor_name || commitment.vendor}
           </div>
         )}
@@ -177,8 +153,8 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
   return (
     <div className="flex flex-col h-full">
       {lastCaptureCount !== null && (
-        <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
-          <span className="text-green-500">✓</span>
+        <div className="px-3 py-2 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+          <span className="text-green-500 dark:text-green-400">✓</span>
           <span>Captured {lastCaptureCount} new commitment{lastCaptureCount !== 1 ? 's' : ''}</span>
         </div>
       )}
@@ -186,8 +162,8 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
       {scanStatus && (
         <div className={`px-3 py-2 border-b text-sm ${
           scanStatus.startsWith('Error') 
-            ? 'bg-red-50 border-red-200 text-red-700' 
-            : 'bg-blue-50 border-blue-200 text-blue-700'
+            ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' 
+            : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
         }`}>
           <div className="flex items-center gap-2 mb-1">
             {isScanning && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />}
@@ -195,9 +171,9 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
             {isScanning && <span className="ml-auto">{commitments.length} found</span>}
           </div>
           {isScanning && (
-            <div className="w-full bg-blue-200 rounded-full h-1.5">
+            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
               <div 
-                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-300" 
                 style={{ width: `${scanPercent}%` }}
               />
             </div>
@@ -206,23 +182,23 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
       )}
       
       {commitments.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 p-3 bg-white border-b border-gray-200">
-          <div className="text-center p-2 bg-green-50 rounded-lg">
-            <div className="text-xs text-green-600 font-medium">Approved</div>
-            <div className="text-sm font-bold text-green-700">{formatCurrency(totals.approved)}</div>
+        <div className="grid grid-cols-3 gap-2 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="text-center p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
+            <div className="text-xs text-green-600 dark:text-green-400 font-medium">Approved</div>
+            <div className="text-sm font-bold text-green-700 dark:text-green-300">{formatCurrency(totals.approved)}</div>
           </div>
-          <div className="text-center p-2 bg-yellow-50 rounded-lg">
-            <div className="text-xs text-yellow-600 font-medium">Pending</div>
-            <div className="text-sm font-bold text-yellow-700">{formatCurrency(totals.pending)}</div>
+          <div className="text-center p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
+            <div className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">Pending</div>
+            <div className="text-sm font-bold text-yellow-700 dark:text-yellow-300">{formatCurrency(totals.pending)}</div>
           </div>
-          <div className="text-center p-2 bg-gray-50 rounded-lg">
-            <div className="text-xs text-gray-600 font-medium">Draft</div>
-            <div className="text-sm font-bold text-gray-700">{formatCurrency(totals.draft)}</div>
+          <div className="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">Draft</div>
+            <div className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(totals.draft)}</div>
           </div>
         </div>
       )}
 
-      <div className="p-3 border-b border-gray-200 bg-white">
+      <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div className="flex gap-2 mb-2">
           <div className="flex-1">
             <SearchInput
@@ -231,42 +207,23 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
               placeholder="Search commitments..."
             />
           </div>
-          <button
-            onClick={handleScan}
-            disabled={isScanning}
-            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-          >
-            {isScanning ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                <span>{scanPercent}%</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Scan</span>
-              </>
-            )}
-          </button>
         </div>
         
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
           {filteredCommitments.length} of {commitments.length} commitments
         </div>
       </div>
 
       {commitments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+        <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           <p className="mb-2">No commitments cached</p>
           <p className="text-sm text-center px-4">
             Open the Commitments page in Procore,<br />
-            then click Scan to capture all commitments.
+            then use Settings to scan and capture all commitments.
           </p>
         </div>
       ) : filteredCommitments.length === 0 ? (
-        <div className="flex items-center justify-center h-64 text-gray-500">
+        <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
           No commitments match your search
         </div>
       ) : (

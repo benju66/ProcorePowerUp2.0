@@ -8,7 +8,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search...' }: Sear
   return (
     <div className="relative">
       <svg
-        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -25,12 +25,12 @@ export function SearchInput({ value, onChange, placeholder = 'Search...' }: Sear
         value={value}
         onInput={(e) => onChange(e.currentTarget.value)}
         placeholder={placeholder}
-        className="search-input pl-9"
+        className="search-input pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:ring-blue-400"
       />
       {value && (
         <button
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
           aria-label="Clear search"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
