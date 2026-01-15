@@ -6,6 +6,7 @@ import { VirtualizedList } from './VirtualizedList'
 
 interface CostTabProps {
   projectId: string
+  dataVersion?: number  // Increment to trigger refresh from wiretap data
 }
 
 function formatCurrency(amount: number | undefined): string {
@@ -18,22 +19,34 @@ function formatCurrency(amount: number | undefined): string {
   }).format(amount)
 }
 
-export function CostTab({ projectId }: CostTabProps) {
+export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
   const [commitments, setCommitments] = useState<Commitment[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
+  const [lastCaptureCount, setLastCaptureCount] = useState<number | null>(null)
 
-  // Load cached data
+  // Load cached data - triggers on projectId change OR dataVersion change (wiretap updates)
   useEffect(() => {
     async function loadData() {
-      setIsLoading(true)
+      if (commitments.length === 0) {
+        setIsLoading(true)
+      }
+      
       const cached = await StorageService.getCommitments(projectId)
+      
+      // Show capture notification if count increased due to wiretap
+      if (dataVersion > 0 && cached.length > commitments.length) {
+        const newCount = cached.length - commitments.length
+        setLastCaptureCount(newCount)
+        setTimeout(() => setLastCaptureCount(null), 3000)
+      }
+      
       setCommitments(cached)
       setIsLoading(false)
     }
     loadData()
-  }, [projectId])
+  }, [projectId, dataVersion])
 
   // Filter commitments based on search
   const filteredCommitments = useMemo(() => {
@@ -114,6 +127,14 @@ export function CostTab({ projectId }: CostTabProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Passive capture notification */}
+      {lastCaptureCount !== null && (
+        <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
+          <span className="text-green-500">✓</span>
+          <span>Captured {lastCaptureCount} new commitment{lastCaptureCount !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+      
       {/* Summary cards */}
       {commitments.length > 0 && (
         <div className="grid grid-cols-3 gap-2 p-3 bg-white border-b border-gray-200">
@@ -173,7 +194,10 @@ export function CostTab({ projectId }: CostTabProps) {
       {commitments.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <p className="mb-2">No commitments cached</p>
-          <p className="text-sm">Click Scan to fetch commitments from Procore</p>
+          <p className="text-sm text-center px-4">
+            Browse the Commitments page in Procore to auto-capture,<br />
+            or click Scan to fetch directly.
+          </p>
         </div>
       ) : filteredCommitments.length === 0 ? (
         <div className="flex items-center justify-center h-64 text-gray-500">

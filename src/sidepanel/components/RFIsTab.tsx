@@ -6,6 +6,7 @@ import { VirtualizedList } from './VirtualizedList'
 
 interface RFIsTabProps {
   projectId: string
+  dataVersion?: number  // Increment to trigger refresh from wiretap data
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -15,23 +16,35 @@ const STATUS_COLORS: Record<string, string> = {
   'void': 'badge-red',
 }
 
-export function RFIsTab({ projectId }: RFIsTabProps) {
+export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
   const [rfis, setRFIs] = useState<RFI[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState<{ loaded: number; total: number | null } | null>(null)
+  const [lastCaptureCount, setLastCaptureCount] = useState<number | null>(null)
 
-  // Load cached data
+  // Load cached data - triggers on projectId change OR dataVersion change (wiretap updates)
   useEffect(() => {
     async function loadData() {
-      setIsLoading(true)
+      if (rfis.length === 0) {
+        setIsLoading(true)
+      }
+      
       const cachedRFIs = await StorageService.getRFIs(projectId)
+      
+      // Show capture notification if count increased due to wiretap
+      if (dataVersion > 0 && cachedRFIs.length > rfis.length) {
+        const newCount = cachedRFIs.length - rfis.length
+        setLastCaptureCount(newCount)
+        setTimeout(() => setLastCaptureCount(null), 3000)
+      }
+      
       setRFIs(cachedRFIs)
       setIsLoading(false)
     }
     loadData()
-  }, [projectId])
+  }, [projectId, dataVersion])
 
   // Filter RFIs based on search
   const filteredRFIs = useMemo(() => {
@@ -108,6 +121,14 @@ export function RFIsTab({ projectId }: RFIsTabProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Passive capture notification */}
+      {lastCaptureCount !== null && (
+        <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
+          <span className="text-green-500">✓</span>
+          <span>Captured {lastCaptureCount} new RFI{lastCaptureCount !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+      
       {/* Search and actions bar */}
       <div className="p-3 border-b border-gray-200 bg-white">
         <div className="flex gap-2 mb-2">
@@ -157,7 +178,10 @@ export function RFIsTab({ projectId }: RFIsTabProps) {
       {rfis.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <p className="mb-2">No RFIs cached</p>
-          <p className="text-sm">Click Scan to fetch RFIs from Procore</p>
+          <p className="text-sm text-center px-4">
+            Browse the RFIs page in Procore to auto-capture,<br />
+            or click Scan to fetch directly.
+          </p>
         </div>
       ) : filteredRFIs.length === 0 ? (
         <div className="flex items-center justify-center h-64 text-gray-500">

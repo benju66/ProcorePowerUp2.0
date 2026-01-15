@@ -6,30 +6,44 @@ import { VirtualizedList } from './VirtualizedList'
 
 interface DrawingsTabProps {
   projectId: string
+  dataVersion?: number  // Increment to trigger refresh from wiretap data
 }
 
-export function DrawingsTab({ projectId }: DrawingsTabProps) {
+export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   const [drawings, setDrawings] = useState<Drawing[]>([])
   const [disciplineMap, setDisciplineMap] = useState<DisciplineMap>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState<{ loaded: number; total: number | null } | null>(null)
+  const [lastCaptureCount, setLastCaptureCount] = useState<number | null>(null)
 
-  // Load cached data
+  // Load cached data - triggers on projectId change OR dataVersion change (wiretap updates)
   useEffect(() => {
     async function loadData() {
-      setIsLoading(true)
+      // Don't show loading spinner on dataVersion updates (wiretap), only on initial/project change
+      if (drawings.length === 0) {
+        setIsLoading(true)
+      }
+      
       const [cachedDrawings, cachedMap] = await Promise.all([
         StorageService.getDrawings(projectId),
         StorageService.getDisciplineMap(projectId),
       ])
+      
+      // Show capture notification if count increased due to wiretap
+      if (dataVersion > 0 && cachedDrawings.length > drawings.length) {
+        const newCount = cachedDrawings.length - drawings.length
+        setLastCaptureCount(newCount)
+        setTimeout(() => setLastCaptureCount(null), 3000)
+      }
+      
       setDrawings(cachedDrawings)
       setDisciplineMap(cachedMap)
       setIsLoading(false)
     }
     loadData()
-  }, [projectId])
+  }, [projectId, dataVersion])
 
   // Filter drawings based on search
   const filteredDrawings = useMemo(() => {
@@ -171,6 +185,14 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Passive capture notification */}
+      {lastCaptureCount !== null && (
+        <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
+          <span className="text-green-500">✓</span>
+          <span>Captured {lastCaptureCount} new drawing{lastCaptureCount !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+      
       {/* Search and actions bar */}
       <div className="p-3 border-b border-gray-200 bg-white">
         <div className="flex gap-2 mb-2">
@@ -218,7 +240,10 @@ export function DrawingsTab({ projectId }: DrawingsTabProps) {
       {drawings.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <p className="mb-2">No drawings cached</p>
-          <p className="text-sm">Click Scan to fetch drawings from Procore</p>
+          <p className="text-sm text-center px-4">
+            Browse the Drawings page in Procore to auto-capture,<br />
+            or click Scan to fetch directly.
+          </p>
         </div>
       ) : filteredDrawings.length === 0 ? (
         <div className="flex items-center justify-center h-64 text-gray-500">
