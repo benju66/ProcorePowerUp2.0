@@ -4,7 +4,8 @@ export interface Drawing {
   id: number
   num: string
   title: string
-  discipline?: number
+  // Discipline can be stored as object {id, name} like v1, or just id, or name directly
+  discipline?: { id?: number; name?: string } | number
   discipline_name?: string
 }
 

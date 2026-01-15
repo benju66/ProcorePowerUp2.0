@@ -1,12 +1,26 @@
 import { useState, useEffect, useMemo, useCallback } from 'preact/hooks'
 import type { Drawing, DisciplineMap } from '@/types'
-import { StorageService, ApiService } from '@/services'
+import { StorageService } from '@/services'
 import { SearchInput } from './SearchInput'
-import { VirtualizedList } from './VirtualizedList'
 
 interface DrawingsTabProps {
   projectId: string
-  dataVersion?: number  // Increment to trigger refresh from wiretap data
+  dataVersion?: number
+}
+
+// Discipline color mapping (like v1)
+function getDisciplineColor(name: string): string {
+  if (!name) return 'bg-gray-400'
+  const n = name.toUpperCase()
+  if (n.includes('ARCH') || n.startsWith('A')) return 'bg-red-500'
+  if (n.includes('STR') || n.startsWith('S')) return 'bg-blue-500'
+  if (n.includes('MECH') || n.startsWith('M')) return 'bg-green-500'
+  if (n.includes('ELEC') || n.startsWith('E')) return 'bg-yellow-500'
+  if (n.includes('PLUM') || n.startsWith('P')) return 'bg-cyan-500'
+  if (n.includes('CIV') || n.startsWith('C')) return 'bg-amber-700'
+  if (n.includes('FIRE') || n.startsWith('F')) return 'bg-orange-500'
+  if (n.includes('LAND') || n.startsWith('L')) return 'bg-lime-500'
+  return 'bg-gray-400'
 }
 
 export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
@@ -15,13 +29,15 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
-  const [scanProgress, setScanProgress] = useState<{ loaded: number; total: number | null } | null>(null)
+  const [scanStatus, setScanStatus] = useState<string | null>(null)
+  const [scanPercent, setScanPercent] = useState(0)
   const [lastCaptureCount, setLastCaptureCount] = useState<number | null>(null)
+  const [expandedDisciplines, setExpandedDisciplines] = useState<Set<string>>(new Set())
+  const [allExpanded, setAllExpanded] = useState(false)
 
-  // Load cached data - triggers on projectId change OR dataVersion change (wiretap updates)
+  // Load cached data
   useEffect(() => {
     async function loadData() {
-      // Don't show loading spinner on dataVersion updates (wiretap), only on initial/project change
       if (drawings.length === 0) {
         setIsLoading(true)
       }
@@ -31,7 +47,13 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
         StorageService.getDisciplineMap(projectId),
       ])
       
-      // Show capture notification if count increased due to wiretap
+      console.log('DrawingsTab: Loaded', cachedDrawings.length, 'drawings,', Object.keys(cachedMap).length, 'disciplines in map')
+      
+      // Debug: log first drawing to see discipline info
+      if (cachedDrawings.length > 0) {
+        console.log('DrawingsTab: Sample drawing:', cachedDrawings[0])
+      }
+      
       if (dataVersion > 0 && cachedDrawings.length > drawings.length) {
         const newCount = cachedDrawings.length - drawings.length
         setLastCaptureCount(newCount)
@@ -45,10 +67,123 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     loadData()
   }, [projectId, dataVersion])
 
-  // Filter drawings based on search
+  // Listen for scan progress updates
+  useEffect(() => {
+    let refreshInterval: ReturnType<typeof setInterval> | null = null
+    
+    const handleMessage = async (message: { type: string; payload?: unknown }) => {
+      console.log('DrawingsTab received message:', message.type, message.payload)
+      
+      if (message.type === 'SCAN_PROGRESS') {
+        const payload = message.payload as { status: string; scanType: string; percent: number; message?: string }
+        if (payload.scanType === 'drawings') {
+          setScanPercent(payload.percent)
+          // Use custom message if provided, otherwise default to percentage
+          setScanStatus(payload.message || `Scanning... ${payload.percent}%`)
+          
+          if (payload.status === 'complete' || payload.status === 'timeout') {
+            // Clear the refresh interval
+            if (refreshInterval) {
+              clearInterval(refreshInterval)
+              refreshInterval = null
+            }
+            
+            // Final reload from storage
+            const [newDrawings, newMap] = await Promise.all([
+              StorageService.getDrawings(projectId),
+              StorageService.getDisciplineMap(projectId),
+            ])
+            console.log('DrawingsTab: Final load -', newDrawings.length, 'drawings,', Object.keys(newMap).length, 'disciplines')
+            setDrawings(newDrawings)
+            setDisciplineMap(newMap)
+            
+            // Check if disciplines are missing - if so, trigger API fallback
+            const uniqueDisciplineIds = new Set<number>()
+            for (const d of newDrawings) {
+              if (typeof d.discipline === 'number') uniqueDisciplineIds.add(d.discipline)
+              else if (d.discipline && typeof d.discipline === 'object') {
+                const disc = d.discipline as { id?: number }
+                if (disc.id) uniqueDisciplineIds.add(disc.id)
+              }
+            }
+            
+            const missingDisciplines = Array.from(uniqueDisciplineIds).filter(id => !newMap[id])
+            
+            if (missingDisciplines.length > 0) {
+              console.log('DrawingsTab: Missing', missingDisciplines.length, 'disciplines, triggering API fetch...')
+              setScanStatus('Fetching discipline names...')
+              
+              // Trigger background API scan for disciplines
+              try {
+                await chrome.runtime.sendMessage({ 
+                  action: 'SCAN_DRAWINGS', 
+                  projectId,
+                  disciplinesOnly: true 
+                })
+                
+                // Reload discipline map after API fetch
+                const updatedMap = await StorageService.getDisciplineMap(projectId)
+                console.log('DrawingsTab: Updated discipline map has', Object.keys(updatedMap).length, 'entries')
+                setDisciplineMap(updatedMap)
+              } catch (error) {
+                console.error('DrawingsTab: Failed to fetch disciplines via API:', error)
+              }
+            }
+            
+            setIsScanning(false)
+            setScanStatus(payload.status === 'timeout' ? 'Scan complete (timeout)' : 'Scan complete!')
+            
+            setTimeout(() => setScanStatus(null), 3000)
+          }
+        }
+      }
+      
+      // Also refresh on DATA_SAVED
+      if (message.type === 'DATA_SAVED') {
+        const payload = message.payload as { type?: string; count?: number }
+        if (payload.type === 'drawings') {
+          console.log('DrawingsTab: DATA_SAVED received, reloading...')
+          const [newDrawings, newMap] = await Promise.all([
+            StorageService.getDrawings(projectId),
+            StorageService.getDisciplineMap(projectId),
+          ])
+          console.log('DrawingsTab: Loaded', newDrawings.length, 'drawings from storage')
+          setDrawings(newDrawings)
+          setDisciplineMap(newMap)
+        }
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleMessage)
+    
+    // While scanning, poll storage every 1.5 seconds as backup
+    // (in case messages aren't being received)
+    if (isScanning) {
+      const pollStorage = async () => {
+        const [newDrawings, newMap] = await Promise.all([
+          StorageService.getDrawings(projectId),
+          StorageService.getDisciplineMap(projectId),
+        ])
+        console.log('DrawingsTab: Polling storage, found', newDrawings.length, 'drawings')
+        setDrawings(newDrawings)
+        setDisciplineMap(newMap)
+      }
+      
+      refreshInterval = setInterval(pollStorage, 1500)
+      // Also poll immediately when starting
+      pollStorage()
+    }
+    
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage)
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+      }
+    }
+  }, [projectId, isScanning])
+
   const filteredDrawings = useMemo(() => {
     if (!searchQuery.trim()) return drawings
-    
     const query = searchQuery.toLowerCase()
     return drawings.filter(d => 
       d.num?.toLowerCase().includes(query) ||
@@ -57,91 +192,106 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     )
   }, [drawings, searchQuery])
 
-  // Group by discipline
+  // Group drawings by discipline - matches v1 logic
   const groupedDrawings = useMemo(() => {
-    const groups: Map<string, Drawing[]> = new Map()
+    const groups: Map<string, { drawings: Drawing[]; sortIndex: number }> = new Map()
     
     for (const drawing of filteredDrawings) {
-      const disciplineName = drawing.discipline_name || 
-        (drawing.discipline && disciplineMap[drawing.discipline]?.name) || 
-        'Uncategorized'
+      let disciplineName = 'General'
+      let sortIndex = 9999
+      
+      // Check discipline object first (v1 style: discipline.id and discipline.name)
+      if (drawing.discipline && typeof drawing.discipline === 'object') {
+        const disc = drawing.discipline as { id?: number; name?: string }
+        if (disc.id && disciplineMap[disc.id]) {
+          // Look up in discipline map
+          const mapEntry = disciplineMap[disc.id]
+          disciplineName = mapEntry.name
+          sortIndex = mapEntry.index ?? 9999
+        } else if (disc.name) {
+          // Use name from discipline object directly
+          disciplineName = disc.name
+        }
+      } else if (typeof drawing.discipline === 'number' && disciplineMap[drawing.discipline]) {
+        // Discipline is just an ID number
+        const mapEntry = disciplineMap[drawing.discipline]
+        disciplineName = mapEntry.name
+        sortIndex = mapEntry.index ?? 9999
+      }
+      
+      // Fallback to discipline_name if set
+      if (disciplineName === 'General' && drawing.discipline_name) {
+        disciplineName = drawing.discipline_name
+      }
       
       if (!groups.has(disciplineName)) {
-        groups.set(disciplineName, [])
+        groups.set(disciplineName, { drawings: [], sortIndex })
       }
-      groups.get(disciplineName)!.push(drawing)
+      groups.get(disciplineName)!.drawings.push(drawing)
     }
     
-    // Sort groups by discipline map index
-    return Array.from(groups.entries()).sort((a, b) => {
-      const aIndex = Object.values(disciplineMap).find(d => d.name === a[0])?.index ?? 999
-      const bIndex = Object.values(disciplineMap).find(d => d.name === b[0])?.index ?? 999
-      return aIndex - bIndex
-    })
+    // Sort groups by sortIndex, then alphabetically
+    return Array.from(groups.entries())
+      .sort((a, b) => {
+        if (a[1].sortIndex !== b[1].sortIndex) {
+          return a[1].sortIndex - b[1].sortIndex
+        }
+        return a[0].localeCompare(b[0])
+      })
+      .map(([name, data]) => ({
+        name,
+        drawings: data.drawings.sort((a, b) => 
+          (a.num || '').localeCompare(b.num || '', undefined, { numeric: true })
+        )
+      }))
   }, [filteredDrawings, disciplineMap])
 
-  // Flatten for virtualization with headers
-  const flatList = useMemo(() => {
-    const items: Array<{ type: 'header' | 'drawing'; data: string | Drawing }> = []
-    
-    for (const [discipline, drawingList] of groupedDrawings) {
-      items.push({ type: 'header', data: `${discipline} (${drawingList.length})` })
-      for (const drawing of drawingList) {
-        items.push({ type: 'drawing', data: drawing })
-      }
-    }
-    
-    return items
-  }, [groupedDrawings])
-
+  // Page-based scan: send message to content script to expand & scroll
   const handleScan = useCallback(async () => {
     setIsScanning(true)
-    setScanProgress({ loaded: 0, total: null })
+    setScanStatus('Expanding disciplines...')
+    setScanPercent(0)
     
     try {
-      // Get drawing area ID from project data or fetch it
-      const project = await StorageService.getProject(projectId)
-      let drawingAreaId = project?.drawingAreaId
-      
-      if (!drawingAreaId) {
-        // Try to fetch drawing areas
-        const areas = await ApiService.fetchDrawingAreas(projectId)
-        if (areas.length > 0) {
-          drawingAreaId = String(areas[0].id)
-          await StorageService.updateProjectAccess(projectId, { drawingAreaId })
-        }
+      // Get active tab to send message to content script
+      const tabResponse = await chrome.runtime.sendMessage({ action: 'GET_ACTIVE_TAB' }) as { 
+        tabId?: number
+        isProcoreTab?: boolean 
       }
       
-      if (!drawingAreaId) {
-        console.error('No drawing area ID available')
+      if (!tabResponse?.isProcoreTab || !tabResponse.tabId) {
+        setScanStatus('Error: Open Procore Drawings page first')
+        setIsScanning(false)
+        setTimeout(() => setScanStatus(null), 3000)
         return
       }
 
-      // Fetch drawings
-      const newDrawings = await ApiService.fetchDrawings(projectId, drawingAreaId, {
-        onProgress: (loaded, total) => setScanProgress({ loaded, total }),
+      // Send scan command to content script (don't await - progress updates come via messages)
+      chrome.tabs.sendMessage(tabResponse.tabId, {
+        action: 'PAGE_SCAN',
+        scanType: 'drawings'
+      }).then((result: { success: boolean; message: string }) => {
+        if (!result.success) {
+          setScanStatus(`Error: ${result.message}`)
+          setIsScanning(false)
+          setTimeout(() => setScanStatus(null), 3000)
+        }
+        // Success is handled by SCAN_PROGRESS messages
+      }).catch((error) => {
+        console.error('Scan command failed:', error)
+        setScanStatus('Error: Could not connect to page')
+        setIsScanning(false)
+        setTimeout(() => setScanStatus(null), 3000)
       })
-      
-      // Save and update state
-      const merged = await StorageService.mergeDrawings(projectId, newDrawings)
-      setDrawings(merged)
-
-      // Also fetch disciplines
-      const disciplines = await ApiService.fetchDisciplines(projectId, drawingAreaId)
-      if (Object.keys(disciplines).length > 0) {
-        await StorageService.saveDisciplineMap(projectId, disciplines)
-        setDisciplineMap(disciplines)
-      }
     } catch (error) {
       console.error('Scan failed:', error)
-    } finally {
+      setScanStatus('Error: Could not connect to page')
       setIsScanning(false)
-      setScanProgress(null)
+      setTimeout(() => setScanStatus(null), 3000)
     }
-  }, [projectId])
+  }, [])
 
   const handleDrawingClick = useCallback((drawing: Drawing) => {
-    // Open drawing in new tab
     StorageService.getProject(projectId).then(project => {
       if (project?.drawingAreaId) {
         const url = `https://app.procore.com/${projectId}/project/drawing_areas/${project.drawingAreaId}/drawing_log/view_fullscreen/${drawing.id}`
@@ -150,30 +300,26 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     })
   }, [projectId])
 
-  const renderItem = useCallback((item: { type: 'header' | 'drawing'; data: string | Drawing }) => {
-    if (item.type === 'header') {
-      return (
-        <div className="px-3 py-2 bg-gray-100 text-xs font-semibold text-gray-600 uppercase tracking-wide sticky top-0">
-          {item.data as string}
-        </div>
-      )
-    }
+  const toggleDiscipline = useCallback((name: string) => {
+    setExpandedDisciplines(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) {
+        next.delete(name)
+      } else {
+        next.add(name)
+      }
+      return next
+    })
+  }, [])
 
-    const drawing = item.data as Drawing
-    return (
-      <div
-        onClick={() => handleDrawingClick(drawing)}
-        className="list-item flex items-center gap-2"
-      >
-        <span className="font-mono text-sm text-blue-600 font-medium min-w-[60px]">
-          {drawing.num}
-        </span>
-        <span className="text-sm text-gray-700 truncate flex-1">
-          {drawing.title}
-        </span>
-      </div>
-    )
-  }, [handleDrawingClick])
+  const toggleExpandAll = useCallback(() => {
+    if (allExpanded) {
+      setExpandedDisciplines(new Set())
+    } else {
+      setExpandedDisciplines(new Set(groupedDrawings.map(g => g.name)))
+    }
+    setAllExpanded(!allExpanded)
+  }, [allExpanded, groupedDrawings])
 
   if (isLoading) {
     return (
@@ -185,11 +331,33 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Passive capture notification */}
+      {/* Notifications */}
       {lastCaptureCount !== null && (
         <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
           <span className="text-green-500">✓</span>
           <span>Captured {lastCaptureCount} new drawing{lastCaptureCount !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+      
+      {scanStatus && (
+        <div className={`px-3 py-2 border-b text-sm ${
+          scanStatus.startsWith('Error') 
+            ? 'bg-red-50 border-red-200 text-red-700' 
+            : 'bg-blue-50 border-blue-200 text-blue-700'
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            {isScanning && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />}
+            <span>{scanStatus}</span>
+            {isScanning && <span className="ml-auto">{drawings.length} found</span>}
+          </div>
+          {isScanning && (
+            <div className="w-full bg-blue-200 rounded-full h-1.5">
+              <div 
+                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                style={{ width: `${scanPercent}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
       
@@ -200,7 +368,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Search drawings..."
+              placeholder="Filter drawings..."
             />
           </div>
           <button
@@ -211,12 +379,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             {isScanning ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                <span>
-                  {scanProgress?.total 
-                    ? `${scanProgress.loaded}/${scanProgress.total}`
-                    : `${scanProgress?.loaded ?? 0}...`
-                  }
-                </span>
+                <span>{scanPercent}%</span>
               </>
             ) : (
               <>
@@ -229,32 +392,92 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
           </button>
         </div>
         
-        {/* Stats bar */}
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>{filteredDrawings.length} of {drawings.length} drawings</span>
-          <span>{groupedDrawings.length} disciplines</span>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500">
+            {filteredDrawings.length} of {drawings.length} drawings
+          </span>
+          <button
+            onClick={toggleExpandAll}
+            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            <span className={`transition-transform ${allExpanded ? 'rotate-180' : ''}`}>▼</span>
+            {allExpanded ? 'Collapse All' : 'Expand All'}
+          </button>
         </div>
       </div>
 
-      {/* Virtualized list */}
+      {/* List */}
       {drawings.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-          <p className="mb-2">No drawings cached</p>
-          <p className="text-sm text-center px-4">
-            Browse the Drawings page in Procore to auto-capture,<br />
-            or click Scan to fetch directly.
+        <div className="flex flex-col items-center justify-center h-64 text-gray-500 px-4">
+          <p className="font-medium mb-2">No drawings found</p>
+          <p className="text-sm text-center">
+            Open the Drawings page in Procore,<br />
+            then click <strong>Scan</strong> to capture data.
           </p>
         </div>
       ) : filteredDrawings.length === 0 ? (
         <div className="flex items-center justify-center h-64 text-gray-500">
-          No drawings match your search
+          No drawings match "{searchQuery}"
         </div>
       ) : (
-        <VirtualizedList
-          items={flatList}
-          itemHeight={40}
-          renderItem={renderItem}
-        />
+        <div className="flex-1 overflow-y-auto">
+          {groupedDrawings.map(({ name, drawings: groupDrawings }) => {
+            const isExpanded = expandedDisciplines.has(name) || searchQuery.trim() !== ''
+            const colorClass = getDisciplineColor(name)
+            
+            return (
+              <div key={name} className="border-b border-gray-100">
+                {/* Discipline Header */}
+                <button
+                  onClick={() => toggleDiscipline(name)}
+                  className="w-full px-3 py-2 flex items-center gap-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                >
+                  <span className={`transition-transform text-xs text-gray-400 ${isExpanded ? 'rotate-90' : ''}`}>
+                    ▶
+                  </span>
+                  <span 
+                    className={`w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center ${colorClass}`}
+                    title={name}
+                  >
+                    {name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="font-medium text-sm text-gray-700 flex-1">
+                    {name}
+                  </span>
+                  <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+                    {groupDrawings.length}
+                  </span>
+                </button>
+                
+                {/* Drawings in this discipline */}
+                {isExpanded && (
+                  <div className="bg-white">
+                    {groupDrawings.map(drawing => (
+                      <div
+                        key={drawing.id}
+                        onClick={() => handleDrawingClick(drawing)}
+                        className="px-3 py-2 pl-10 border-b border-gray-50 hover:bg-blue-50 cursor-pointer flex items-center gap-2 group"
+                      >
+                        <span className="font-mono text-sm text-blue-600 font-medium min-w-[70px] group-hover:text-blue-800">
+                          {drawing.num}
+                        </span>
+                        <span className="text-sm text-gray-600 truncate flex-1 group-hover:text-gray-800">
+                          {drawing.title}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          
+          {/* Footer stats */}
+          <div className="px-3 py-2 text-xs text-gray-400 text-center bg-gray-50">
+            {groupedDrawings.length} discipline{groupedDrawings.length !== 1 ? 's' : ''} • {drawings.length} total drawings
+          </div>
+        </div>
       )}
     </div>
   )

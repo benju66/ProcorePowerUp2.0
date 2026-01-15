@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'preact/hooks'
 import type { Commitment } from '@/types'
-import { StorageService, ApiService } from '@/services'
+import { StorageService } from '@/services'
 import { SearchInput } from './SearchInput'
 import { VirtualizedList } from './VirtualizedList'
 
 interface CostTabProps {
   projectId: string
-  dataVersion?: number  // Increment to trigger refresh from wiretap data
+  dataVersion?: number
 }
 
 function formatCurrency(amount: number | undefined): string {
@@ -24,9 +24,10 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
+  const [scanStatus, setScanStatus] = useState<string | null>(null)
+  const [scanPercent, setScanPercent] = useState(0)
   const [lastCaptureCount, setLastCaptureCount] = useState<number | null>(null)
 
-  // Load cached data - triggers on projectId change OR dataVersion change (wiretap updates)
   useEffect(() => {
     async function loadData() {
       if (commitments.length === 0) {
@@ -35,7 +36,6 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
       
       const cached = await StorageService.getCommitments(projectId)
       
-      // Show capture notification if count increased due to wiretap
       if (dataVersion > 0 && cached.length > commitments.length) {
         const newCount = cached.length - commitments.length
         setLastCaptureCount(newCount)
@@ -48,10 +48,39 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
     loadData()
   }, [projectId, dataVersion])
 
-  // Filter commitments based on search
+  // Listen for scan progress
+  useEffect(() => {
+    const handleMessage = async (message: { type: string; payload?: unknown }) => {
+      if (message.type === 'SCAN_PROGRESS') {
+        const payload = message.payload as { status: string; scanType: string; percent: number }
+        if (payload.scanType === 'commitments') {
+          setScanPercent(payload.percent)
+          
+          if (payload.status === 'complete' || payload.status === 'timeout') {
+            setIsScanning(false)
+            setScanStatus('Scan complete!')
+            const newCommitments = await StorageService.getCommitments(projectId)
+            setCommitments(newCommitments)
+            setTimeout(() => setScanStatus(null), 3000)
+          }
+        }
+      }
+      
+      if (message.type === 'DATA_SAVED' && isScanning) {
+        const payload = message.payload as { type?: string }
+        if (payload.type === 'commitments') {
+          const newCommitments = await StorageService.getCommitments(projectId)
+          setCommitments(newCommitments)
+        }
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleMessage)
+    return () => chrome.runtime.onMessage.removeListener(handleMessage)
+  }, [projectId, isScanning])
+
   const filteredCommitments = useMemo(() => {
     if (!searchQuery.trim()) return commitments
-    
     const query = searchQuery.toLowerCase()
     return commitments.filter(c => 
       c.number?.toLowerCase().includes(query) ||
@@ -61,7 +90,6 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
     )
   }, [commitments, searchQuery])
 
-  // Calculate totals
   const totals = useMemo(() => {
     return commitments.reduce((acc, c) => ({
       approved: acc.approved + (c.approved_amount ?? 0),
@@ -72,17 +100,41 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
 
   const handleScan = useCallback(async () => {
     setIsScanning(true)
+    setScanStatus('Starting scan...')
+    setScanPercent(0)
     
     try {
-      const newCommitments = await ApiService.fetchCommitments(projectId)
-      const merged = await StorageService.mergeCommitments(projectId, newCommitments)
-      setCommitments(merged)
+      const tabResponse = await chrome.runtime.sendMessage({ action: 'GET_ACTIVE_TAB' }) as { 
+        tabId?: number
+        isProcoreTab?: boolean 
+      }
+      
+      if (!tabResponse?.isProcoreTab || !tabResponse.tabId) {
+        setScanStatus('Error: Open Procore Commitments page first')
+        setIsScanning(false)
+        setTimeout(() => setScanStatus(null), 3000)
+        return
+      }
+
+      const result = await chrome.tabs.sendMessage(tabResponse.tabId, {
+        action: 'PAGE_SCAN',
+        scanType: 'commitments'
+      }) as { success: boolean; message: string }
+
+      if (!result.success) {
+        setScanStatus(`Error: ${result.message}`)
+        setIsScanning(false)
+        setTimeout(() => setScanStatus(null), 3000)
+      } else {
+        setScanStatus('Scanning page...')
+      }
     } catch (error) {
       console.error('Commitments scan failed:', error)
-    } finally {
+      setScanStatus('Error: Could not connect to page')
       setIsScanning(false)
+      setTimeout(() => setScanStatus(null), 3000)
     }
-  }, [projectId])
+  }, [])
 
   const handleCommitmentClick = useCallback((commitment: Commitment) => {
     const url = `https://app.procore.com/${projectId}/project/contracts/commitments/${commitment.id}`
@@ -91,10 +143,7 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
 
   const renderItem = useCallback((commitment: Commitment) => {
     return (
-      <div
-        onClick={() => handleCommitmentClick(commitment)}
-        className="list-item"
-      >
+      <div onClick={() => handleCommitmentClick(commitment)} className="list-item">
         <div className="flex items-center justify-between mb-1">
           <span className="font-mono text-sm text-blue-600 font-medium">
             #{commitment.number}
@@ -127,7 +176,6 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Passive capture notification */}
       {lastCaptureCount !== null && (
         <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
           <span className="text-green-500">✓</span>
@@ -135,7 +183,28 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
         </div>
       )}
       
-      {/* Summary cards */}
+      {scanStatus && (
+        <div className={`px-3 py-2 border-b text-sm ${
+          scanStatus.startsWith('Error') 
+            ? 'bg-red-50 border-red-200 text-red-700' 
+            : 'bg-blue-50 border-blue-200 text-blue-700'
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            {isScanning && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />}
+            <span>{scanStatus}</span>
+            {isScanning && <span className="ml-auto">{commitments.length} found</span>}
+          </div>
+          {isScanning && (
+            <div className="w-full bg-blue-200 rounded-full h-1.5">
+              <div 
+                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                style={{ width: `${scanPercent}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+      
       {commitments.length > 0 && (
         <div className="grid grid-cols-3 gap-2 p-3 bg-white border-b border-gray-200">
           <div className="text-center p-2 bg-green-50 rounded-lg">
@@ -153,7 +222,6 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
         </div>
       )}
 
-      {/* Search and actions bar */}
       <div className="p-3 border-b border-gray-200 bg-white">
         <div className="flex gap-2 mb-2">
           <div className="flex-1">
@@ -171,7 +239,7 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
             {isScanning ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                <span>Scanning...</span>
+                <span>{scanPercent}%</span>
               </>
             ) : (
               <>
@@ -184,19 +252,17 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
           </button>
         </div>
         
-        {/* Stats bar */}
         <div className="text-xs text-gray-500">
           {filteredCommitments.length} of {commitments.length} commitments
         </div>
       </div>
 
-      {/* List */}
       {commitments.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <p className="mb-2">No commitments cached</p>
           <p className="text-sm text-center px-4">
-            Browse the Commitments page in Procore to auto-capture,<br />
-            or click Scan to fetch directly.
+            Open the Commitments page in Procore,<br />
+            then click Scan to capture all commitments.
           </p>
         </div>
       ) : filteredCommitments.length === 0 ? (

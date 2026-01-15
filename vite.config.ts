@@ -40,6 +40,14 @@ export default defineConfig({
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
+        // Prevent code splitting for service worker - inline all dependencies
+        manualChunks(id) {
+          // Don't split chunks that are used by the background service worker
+          // This ensures all dependencies are inlined into background.js
+          if (id.includes('idb-keyval') || id.includes('services/storage')) {
+            return undefined // Let Rollup decide, but with inlineDynamicImports this gets inlined
+          }
+        },
       },
     },
   },

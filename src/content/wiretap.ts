@@ -33,6 +33,10 @@
   }
 
   function broadcast(data: unknown, sourceUrl: string, headers: WiretapHeaders = { total: null, perPage: null }) {
+    // Log what we're capturing for debugging
+    const dataLength = Array.isArray(data) ? data.length : 'object'
+    console.log('PP Wiretap: Captured', dataLength, 'items from:', sourceUrl.substring(0, 100))
+    
     window.postMessage({
       type: 'PP_DATA',
       payload: data,
@@ -61,11 +65,16 @@
       return false
     }
 
-    // 1. Drawings
+    // 1. Drawings - capture all drawing-related endpoints
     if (lower.includes('drawing_log') || lower.includes('drawing_revisions') || lower.includes('/drawings')) {
       return true
     }
-    if (lower.includes('groups') || lower.includes('discipline')) {
+    // Groups/disciplines - these contain the discipline mappings
+    if (lower.includes('groups') || lower.includes('discipline') || lower.includes('drawing_areas')) {
+      return true
+    }
+    // AG Grid server-side row model requests (Procore uses AG Grid)
+    if (lower.includes('server_side') || lower.includes('serverside')) {
       return true
     }
 
