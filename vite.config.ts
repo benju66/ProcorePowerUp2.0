@@ -30,6 +30,7 @@ export default defineConfig({
         content: resolve(__dirname, 'src/content/content.ts'),
         wiretap: resolve(__dirname, 'src/content/wiretap.ts'),
         overlay: resolve(__dirname, 'src/content/overlay.tsx'),
+        overlay_loader: resolve(__dirname, 'src/content/overlay-loader.ts'),
       },
       output: {
         entryFileNames: (chunkInfo) => {
@@ -38,6 +39,7 @@ export default defineConfig({
           if (chunkInfo.name === 'content') return 'content.js'
           if (chunkInfo.name === 'wiretap') return 'wiretap.js'
           if (chunkInfo.name === 'overlay') return 'overlay.js'
+          if (chunkInfo.name === 'overlay_loader') return 'overlay-loader.js'
           return 'assets/[name]-[hash].js'
         },
         chunkFileNames: 'assets/[name]-[hash].js',

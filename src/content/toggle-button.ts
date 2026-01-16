@@ -223,7 +223,8 @@ function setupKeyboardShortcut(): void {
     if (e.altKey && e.code === 'KeyP') {
       e.preventDefault()
       // Dispatch custom event for overlay to listen
-      window.dispatchEvent(new CustomEvent('pp-toggle-overlay'))
+      console.log('PP: Alt+P pressed, dispatching pp-toggle-overlay event')
+      window.dispatchEvent(new CustomEvent('pp-toggle-overlay', { bubbles: true, cancelable: true }))
     }
   })
 }

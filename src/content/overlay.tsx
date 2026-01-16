@@ -85,12 +85,14 @@ class OverlayDataProvider implements CommandPaletteDataProvider {
  * Manages visibility and project ID state
  */
 function OverlayApp({ onVisibilityChange }: { onVisibilityChange: (visible: boolean) => void }) {
+  console.log('PP Overlay: OverlayApp component rendering')
   const [isVisible, setIsVisible] = useState(false)
   const [projectId, setProjectId] = useState<string | null>(null)
   const dataProvider = new OverlayDataProvider()
 
   // Extract project ID from URL
   useEffect(() => {
+    console.log('PP Overlay: Setting up project ID extraction')
     const updateProjectId = () => {
       const id = extractProjectIdFromUrl()
       setProjectId(id)
@@ -112,18 +114,39 @@ function OverlayApp({ onVisibilityChange }: { onVisibilityChange: (visible: bool
     }
   }, [])
 
-  // Listen for toggle event
+  // Listen for toggle event from Shadow DOM
   useEffect(() => {
-    const handleToggle = () => {
-      setIsVisible(prev => !prev)
+    console.log('PP Overlay: Setting up toggle event listener in Shadow DOM')
+    
+    // Get the shadow root's host element to listen for events dispatched to shadow root
+    const shadowHost = document.getElementById('pp-overlay-root')
+    const shadowRoot = shadowHost?.shadowRoot
+    
+    const handleToggle = (e: Event) => {
+      e.stopPropagation() // Prevent any further propagation
+      console.log('PP Overlay: Received pp-toggle-overlay event in component')
+      setIsVisible(prev => {
+        const newValue = !prev
+        console.log('PP Overlay: Toggling visibility from', prev, 'to', newValue)
+        return newValue
+      })
     }
     
-    window.addEventListener('pp-toggle-overlay', handleToggle)
+    // Only listen on the shadow root (events are bridged from setupShadowRoot)
+    if (shadowRoot) {
+      console.log('PP Overlay: Adding listener to shadow root only')
+      shadowRoot.addEventListener('pp-toggle-overlay', handleToggle)
+    } else {
+      console.warn('PP Overlay: Shadow root not found, cannot set up event listener')
+    }
     
     return () => {
-      window.removeEventListener('pp-toggle-overlay', handleToggle)
+      console.log('PP Overlay: Removing event listener')
+      if (shadowRoot) {
+        shadowRoot.removeEventListener('pp-toggle-overlay', handleToggle)
+      }
     }
-  }, [])
+  }, []) // Empty dependency array - only set up listener once
 
   // Sync visibility with host element
   useEffect(() => {
@@ -199,14 +222,34 @@ function setupShadowRoot(host: HTMLElement) {
 
   // Handle visibility changes from the app
   const handleVisibilityChange = (visible: boolean) => {
+    console.log('PP: handleVisibilityChange called with:', visible)
     host.style.display = visible ? 'block' : 'none'
     host.style.pointerEvents = visible ? 'auto' : 'none'
   }
 
+  // Set up event listener OUTSIDE Shadow DOM (in content script context)
+  // This ensures events from toggle-button.ts can reach us
+  const handleToggleEvent = (e: Event) => {
+    console.log('PP: Toggle event received in setupShadowRoot')
+    e.stopPropagation() // Prevent event from bubbling further
+    // Dispatch event into Shadow DOM so Preact component can receive it
+    shadowRoot.dispatchEvent(new CustomEvent('pp-toggle-overlay', { bubbles: false }))
+  }
+  
+  console.log('PP: Setting up event listener on main window')
+  window.addEventListener('pp-toggle-overlay', handleToggleEvent, true) // Use capture phase
+
   // Render Preact app into Shadow DOM
+  console.log('PP: Rendering OverlayApp component')
   render(<OverlayApp onVisibilityChange={handleVisibilityChange} />, appContainer)
 
   console.log('PP: Command Palette overlay initialized')
+  console.log('PP: Shadow root created, overlay app rendered')
+  
+  // Store cleanup function
+  ;(host as any)._ppCleanup = () => {
+    window.removeEventListener('pp-toggle-overlay', handleToggleEvent, true)
+  }
 }
 
 // Initialize when DOM is ready

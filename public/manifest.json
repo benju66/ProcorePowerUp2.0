@@ -47,9 +47,15 @@
     },
     {
       "matches": ["https://*.procore.com/*"],
-      "js": ["overlay.js"],
+      "js": ["overlay-loader.js"],
       "world": "ISOLATED",
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["overlay.js", "assets/*"],
+      "matches": ["https://*.procore.com/*"]
     }
   ]
 }
