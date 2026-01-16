@@ -194,3 +194,91 @@ body {
     transform: translateY(0);
   }
 }
+
+/* ============================================
+   MASCOT ANIMATIONS
+   ============================================ */
+
+/* 1. The Happy Zap (Data Saved) */
+@keyframes happy-zap {
+  0% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.2) rotate(-15deg); }
+  50% { transform: scale(1.2) rotate(15deg); }
+  75% { transform: scale(1.1) rotate(-5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.animate-happy-zap {
+  animation: happy-zap 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  color: #fbbf24; /* amber-400 */
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.6));
+}
+
+/* 2. The Super Shimmer (Scan Complete) */
+/* Using text-shadow instead of background-clip for emoji compatibility */
+@keyframes electric-shimmer {
+  0% { 
+    transform: scale(1);
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.4);
+  }
+  25% { 
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.8), 
+                 0 0 12px rgba(255, 255, 255, 0.6);
+  }
+  50% { 
+    transform: scale(1.3);
+    text-shadow: 0 0 16px rgba(251, 191, 36, 1), 
+                 0 0 24px rgba(255, 255, 255, 0.8),
+                 0 0 32px rgba(251, 191, 36, 0.6);
+  }
+  75% { 
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.8), 
+                 0 0 12px rgba(255, 255, 255, 0.6);
+  }
+  100% { 
+    transform: scale(1);
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.4);
+  }
+}
+
+.animate-super-shimmer {
+  animation: electric-shimmer 1.5s ease-in-out forwards;
+  color: #fbbf24; /* amber-400 */
+  font-weight: 900;
+}
+
+/* 3. The Idle Breathe (Waiting) */
+@keyframes idle-breathe {
+  0%, 100% { 
+    transform: scale(1) translateY(0); 
+    filter: brightness(1) opacity(0.8);
+  }
+  50% { 
+    transform: scale(1.05) translateY(-1px); 
+    filter: brightness(1.1) opacity(1);
+  }
+}
+
+.animate-idle {
+  animation: idle-breathe 3s ease-in-out infinite;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-happy-zap,
+  .animate-super-shimmer {
+    animation: none;
+    transform: none;
+    text-shadow: none;
+    filter: none;
+  }
+  
+  .animate-idle {
+    animation: idle-breathe-subtle 4s ease-in-out infinite;
+  }
+}
+
+@keyframes idle-breathe-subtle {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; }
+}
