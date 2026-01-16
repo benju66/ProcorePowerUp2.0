@@ -3,6 +3,7 @@ import { createPortal } from 'preact/compat'
 import { useCommandPalette } from '../hooks/useCommandPalette'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
+import { getDisciplineColor } from '../utils/discipline'
 import type { CommandPaletteResult } from '@/types'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
 
@@ -165,9 +166,23 @@ export function CommandPalette({
             </div>
           ) : (
             Array.from(groupedResults.entries()).map(([discipline, results]) => (
-              <div key={discipline} className="mb-4">
-                <div className="px-2 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                  {discipline}
+              <div key={discipline} className="mb-3">
+                {/* Discipline header with colored tag - matches v2 sidebar style */}
+                <div className="px-2 py-1.5 flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded mb-1">
+                  {/* Colored discipline tag with first letter */}
+                  <span 
+                    className={`w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center flex-shrink-0 ${getDisciplineColor(discipline)}`}
+                  >
+                    {discipline.charAt(0).toUpperCase()}
+                  </span>
+                  {/* Discipline name */}
+                  <span className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                    {discipline}
+                  </span>
+                  {/* Result count badge */}
+                  <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded-full ml-auto">
+                    {results.length}
+                  </span>
                 </div>
                 <ul className="space-y-1">
                   {results.map(result => {

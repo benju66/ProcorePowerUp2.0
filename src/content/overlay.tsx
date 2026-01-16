@@ -220,6 +220,29 @@ function setupShadowRoot(host: HTMLElement) {
   // Create container for Preact app
   const appContainer = document.createElement('div')
   appContainer.id = 'pp-overlay-app'
+  
+  // Apply theme to container (Shadow DOM doesn't inherit from document.documentElement)
+  // This must happen BEFORE render to prevent flash of wrong theme
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  const applyTheme = (prefersDark: boolean) => {
+    if (prefersDark) {
+      appContainer.classList.add('dark')
+      appContainer.classList.remove('light')
+    } else {
+      appContainer.classList.add('light')
+      appContainer.classList.remove('dark')
+    }
+  }
+  
+  // Apply initial theme
+  applyTheme(mediaQuery.matches)
+  
+  // Listen for system theme changes
+  const handleThemeChange = (e: MediaQueryListEvent) => {
+    applyTheme(e.matches)
+  }
+  mediaQuery.addEventListener('change', handleThemeChange)
+  
   shadowRoot.appendChild(appContainer)
 
   // Handle visibility changes from the app
@@ -251,6 +274,7 @@ function setupShadowRoot(host: HTMLElement) {
   // Store cleanup function
   ;(host as any)._ppCleanup = () => {
     window.removeEventListener('pp-toggle-overlay', handleToggleEvent, true)
+    mediaQuery.removeEventListener('change', handleThemeChange)
   }
 }
 
