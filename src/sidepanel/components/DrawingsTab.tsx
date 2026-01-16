@@ -35,6 +35,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   const [lastCaptureCount, setLastCaptureCount] = useState<number | null>(null)
   const [expandedDisciplines, setExpandedDisciplines] = useState<Set<string>>(new Set())
   const [allExpanded, setAllExpanded] = useState(false)
+  const [activeDisciplineFilter, setActiveDisciplineFilter] = useState<string | null>(null)
 
   // Ref to scrollable container for drag auto-scroll and keyboard navigation
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -228,6 +229,17 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     )
   }, [drawings, searchQuery])
 
+  // Helper to check if a drawing matches the search query
+  const drawingMatchesSearch = useCallback((drawing: Drawing) => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase()
+    return (
+      drawing.num?.toLowerCase().includes(query) ||
+      drawing.title?.toLowerCase().includes(query) ||
+      drawing.discipline_name?.toLowerCase().includes(query)
+    )
+  }, [searchQuery])
+
   // Group drawings by discipline - matches v1 logic
   const groupedDrawings = useMemo(() => {
     const groups: Map<string, { drawings: Drawing[]; sortIndex: number }> = new Map()
@@ -282,6 +294,12 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
       }))
   }, [filteredDrawings, disciplineMap])
 
+  // Filter grouped drawings by active discipline filter
+  const filteredGroupedDrawings = useMemo(() => {
+    if (!activeDisciplineFilter) return groupedDrawings
+    return groupedDrawings.filter(g => g.name === activeDisciplineFilter)
+  }, [groupedDrawings, activeDisciplineFilter])
+
 
   const handleDrawingClick = useCallback(async (drawing: Drawing) => {
     try {
@@ -321,11 +339,21 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     })
   }, [])
 
+  const toggleDisciplineFilter = useCallback((name: string) => {
+    setActiveDisciplineFilter(prev => {
+      if (prev === name) {
+        return null // Clear filter if clicking same discipline
+      }
+      return name // Set filter to clicked discipline
+    })
+    setSearchQuery('') // Clear search when filtering
+  }, [])
+
   const toggleExpandAll = useCallback(() => {
     if (allExpanded) {
       setExpandedDisciplines(new Set())
     } else {
-      setExpandedDisciplines(new Set(groupedDrawings.map(g => g.name)))
+      setExpandedDisciplines(new Set(filteredGroupedDrawings.map(g => g.name)))
     }
     setAllExpanded(!allExpanded)
   }, [allExpanded, groupedDrawings])
@@ -377,7 +405,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Filter drawings..."
+              placeholder={activeDisciplineFilter ? `Filtered: ${activeDisciplineFilter}` : 'Filter drawings...'}
               onArrowDown={() => {
                 if (scrollContainerRef.current) {
                   focusFirst(scrollContainerRef.current)
@@ -456,7 +484,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
           )}
 
           {/* Discipline Groups */}
-          {groupedDrawings.map(({ name, drawings: groupDrawings }) => {
+          {filteredGroupedDrawings.map(({ name, drawings: groupDrawings }) => {
             const isExpanded = expandedDisciplines.has(name) || searchQuery.trim() !== ''
             const colorClass = getDisciplineColor(name)
             
@@ -509,8 +537,15 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                     ▶
                   </span>
                   <span 
-                    className={`w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center ${colorClass}`}
-                    title={name}
+                    className={`w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center ${colorClass} cursor-pointer transition-transform hover:scale-110 hover:shadow-md ${
+                      activeDisciplineFilter === name ? 'ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-1' : ''
+                    }`}
+                    title={activeDisciplineFilter === name ? `Filtered: ${name} (click to clear)` : `Click to filter: ${name}`}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      toggleDisciplineFilter(name)
+                    }}
                   >
                     {name.charAt(0).toUpperCase()}
                   </span>
@@ -536,6 +571,8 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                         orange: 'bg-orange-50 dark:bg-orange-900/20 border-l-2 border-orange-500',
                         pink: 'bg-pink-50 dark:bg-pink-900/20 border-l-2 border-pink-500',
                       }
+                      
+                      const matchesSearch = drawingMatchesSearch(drawing)
                       
                       return (
                         <div
@@ -590,7 +627,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                           }}
                           className={`drawing-row px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group ${
                             statusColor ? rowColorClasses[statusColor] : ''
-                          }`}
+                          } ${searchQuery.trim() && !matchesSearch ? 'squeeze-out' : ''}`}
                         >
                           <StatusDot
                             color={statusColor}

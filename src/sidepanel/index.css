@@ -155,3 +155,42 @@ body {
 .drawing-row:focus {
   @apply ring-2 ring-blue-500 dark:ring-blue-400 ring-inset;
 }
+
+/* ============================================
+   FILTER ANIMATIONS
+   ============================================ */
+
+/* Squeeze-out animation for search-filtered rows (like v1) */
+.squeeze-out {
+  transform: scale(0.9);
+  opacity: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+  transition: all 0.2s ease-out;
+}
+
+/* Fade animation for discipline sections when filtering */
+.discipline-section {
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.discipline-section.filtering-out {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.discipline-section.filtering-in {
+  animation: fadeInSlide 0.2s ease-out;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
