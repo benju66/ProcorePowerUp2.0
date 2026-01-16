@@ -25,6 +25,7 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
   const { showRFIsTab, showCostTab, setShowRFIsTab, setShowCostTab } = useTabVisibility()
   const { folders, addFolder, removeFolder, addDrawingToFolder, isLoading: favoritesLoading } = useFavorites()
   const [openInBackground, setOpenInBackground] = useState(false)
+  const [showFloatingButton, setShowFloatingButton] = useState(true)
   const [showFolderInput, setShowFolderInput] = useState(false)
   const [dragOverFolderId, setDragOverFolderId] = useState<number | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -46,11 +47,19 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
   useEffect(() => {
     async function loadPreferences() {
       try {
-        const bg = await StorageService.getPreferences<boolean>(
-          PREFERENCE_KEYS.openInBackground,
-          false
-        )
+        const [bg, buttonPrefs] = await Promise.all([
+          StorageService.getPreferences<boolean>(
+            PREFERENCE_KEYS.openInBackground,
+            false
+          ),
+          chrome.storage.local.get(['pp_button_prefs']).then(result => {
+            const prefs = (result.pp_button_prefs || {}) as { showFloatingButton?: boolean }
+            // Default to true if not set
+            return prefs.showFloatingButton !== false
+          })
+        ])
         setOpenInBackground(bg)
+        setShowFloatingButton(buttonPrefs)
       } catch (error) {
         console.error('Failed to load preferences:', error)
       }
@@ -160,6 +169,26 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
       console.error('Failed to save preference:', error)
       // Revert on error
       setOpenInBackground(!checked)
+    }
+  }
+
+  const handleShowFloatingButtonChange = async (e: Event) => {
+    const checked = (e.target as HTMLInputElement).checked
+    setShowFloatingButton(checked)
+    try {
+      // Save to chrome.storage.local (same as button position preference)
+      const result = await chrome.storage.local.get(['pp_button_prefs'])
+      const existingPrefs = result.pp_button_prefs || {}
+      await chrome.storage.local.set({
+        pp_button_prefs: {
+          ...existingPrefs,
+          showFloatingButton: checked
+        }
+      })
+    } catch (error) {
+      console.error('Failed to save floating button preference:', error)
+      // Revert on error
+      setShowFloatingButton(!checked)
     }
   }
 
@@ -401,6 +430,23 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
           </label>
           <div className="px-2 mt-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
             When enabled, links open without switching tabs
+          </div>
+          
+          <label 
+            className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+            role="menuitemcheckbox"
+            aria-checked={showFloatingButton}
+          >
+            <span>Show Floating Button</span>
+            <input
+              type="checkbox"
+              checked={showFloatingButton}
+              onChange={handleShowFloatingButtonChange}
+              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
+            />
+          </label>
+          <div className="px-2 mt-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
+            Toggle the floating button on Procore pages
           </div>
           
           {/* Tab Visibility Toggles */}

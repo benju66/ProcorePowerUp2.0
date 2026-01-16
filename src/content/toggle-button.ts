@@ -87,14 +87,20 @@ const STYLES = `
 
 interface ToggleButtonPrefs {
   buttonTop?: string
+  showFloatingButton?: boolean
 }
 
 async function getPreferences(): Promise<ToggleButtonPrefs> {
   try {
     const result = await chrome.storage.local.get(['pp_button_prefs'])
-    return result.pp_button_prefs || {}
+    const prefs = (result.pp_button_prefs || {}) as ToggleButtonPrefs
+    // Default showFloatingButton to true for backward compatibility
+    if (prefs.showFloatingButton === undefined) {
+      prefs.showFloatingButton = true
+    }
+    return prefs
   } catch {
-    return {}
+    return { showFloatingButton: true }
   }
 }
 
@@ -133,6 +139,12 @@ async function createButton(): Promise<HTMLElement> {
   // Restore saved position
   if (prefs.buttonTop) {
     btn.style.top = prefs.buttonTop
+  }
+  
+  // Set initial visibility based on preference
+  // Will be overridden by updatePanelState if panel is open
+  if (prefs.showFloatingButton === false) {
+    btn.style.display = 'none'
   }
   
   // Click handler
@@ -242,12 +254,31 @@ async function toggleSidePanel(): Promise<void> {
   }
 }
 
-// Update button visibility based on panel state
-export function updatePanelState(isOpen: boolean): void {
-  if (buttonElement) {
-    // Hide button when panel is open, show when closed
-    buttonElement.style.display = isOpen ? 'none' : 'flex'
+// Update button visibility based on panel state AND preference
+async function updateButtonVisibility(): Promise<void> {
+  if (!buttonElement) return
+  
+  const prefs = await getPreferences()
+  const showButton = prefs.showFloatingButton !== false // Default to true
+  
+  // Get current panel state
+  let isPanelOpen = false
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'GET_SIDEPANEL_STATE' })
+    isPanelOpen = response?.isOpen === true
+  } catch {
+    // Ignore - assume panel is closed
   }
+  
+  // Hide if preference is false OR panel is open
+  buttonElement.style.display = (showButton && !isPanelOpen) ? 'flex' : 'none'
+}
+
+// Update button visibility based on panel state
+export function updatePanelState(_isOpen: boolean): void {
+  // Update visibility considering both panel state and preference
+  // Note: isOpen is passed for API compatibility but we check it inside updateButtonVisibility
+  updateButtonVisibility()
 }
 
 // ============================================
@@ -285,14 +316,26 @@ export async function initToggleButton(): Promise<void> {
     }
   })
   
-  // Get initial panel state
+  // Listen for storage changes (preference updates)
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes.pp_button_prefs) {
+      // Preference changed, update button visibility
+      updateButtonVisibility()
+    }
+  })
+  
+  // Get initial panel state and set visibility
   try {
     const response = await chrome.runtime.sendMessage({ action: 'GET_SIDEPANEL_STATE' })
     if (response?.isOpen !== undefined) {
       updatePanelState(response.isOpen)
+    } else {
+      // No panel state, just check preference
+      updateButtonVisibility()
     }
   } catch {
-    // Ignore - panel state unknown
+    // Ignore - panel state unknown, just check preference
+    updateButtonVisibility()
   }
 }
 

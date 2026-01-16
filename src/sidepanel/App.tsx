@@ -264,7 +264,13 @@ export function App() {
         <TabBar 
           tabs={visibleTabs} 
           activeTab={activeTab} 
-          onTabChange={setActiveTab} 
+          onTabChange={setActiveTab}
+          autoFocus={true}
+          onExitDown={() => {
+            // Focus the search input in the active tab
+            const searchInput = document.querySelector<HTMLInputElement>('[data-search-input]')
+            searchInput?.focus()
+          }}
         />
 
         <main className="flex-1 overflow-hidden relative" style={{ zIndex: 1 }}>

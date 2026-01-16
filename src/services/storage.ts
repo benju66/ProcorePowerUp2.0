@@ -270,7 +270,16 @@ export const StorageService = {
   async getFavorites(projectId: string): Promise<FavoritesData> {
     if (!projectId) return { folders: [] }
     const data = await get<FavoritesData>(favoritesKey(projectId), preferencesStore)
-    return data ?? { folders: [] }
+    if (!data) return { folders: [] }
+    
+    // Ensure all folder drawings are sorted to match default list order
+    data.folders.forEach(folder => {
+      folder.drawings.sort((a, b) => 
+        (a || '').localeCompare(b || '', undefined, { numeric: true })
+      )
+    })
+    
+    return data
   },
 
   async saveFavorites(projectId: string, favorites: FavoritesData): Promise<void> {
@@ -308,6 +317,10 @@ export const StorageService = {
     if (folder.drawings.includes(drawingNum)) return false
     
     folder.drawings.push(drawingNum)
+    // Sort drawings to match the default list order (numeric sorting)
+    folder.drawings.sort((a, b) => 
+      (a || '').localeCompare(b || '', undefined, { numeric: true })
+    )
     await this.saveFavorites(projectId, favorites)
     return true
   },

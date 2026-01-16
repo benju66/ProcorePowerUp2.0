@@ -1,8 +1,10 @@
-import { useState } from 'preact/hooks'
+import { useState, useEffect } from 'preact/hooks'
 import type { Drawing, StatusColor } from '@/types'
 import { StatusDot } from './StatusDot'
 import { useStatusColors } from '../hooks/useStatusColors'
 import { navigateToNext, findParentHeader } from '../hooks/useKeyboardNavigation'
+import { StorageService } from '@/services'
+import { PREFERENCE_KEYS } from '@/types/preferences'
 
 interface RecentsSectionProps {
   recents: string[]
@@ -13,8 +15,25 @@ interface RecentsSectionProps {
 }
 
 export function RecentsSection({ recents, drawings, projectId, onDrawingClick, scrollContainerRef }: RecentsSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const { colors: statusColors, cycleColor } = useStatusColors(projectId)
+
+  // Load persisted expanded state
+  useEffect(() => {
+    async function loadExpandedState() {
+      const expanded = await StorageService.getPreferences<boolean>(
+        PREFERENCE_KEYS.recentsExpanded,
+        false // Default to collapsed
+      )
+      setIsExpanded(expanded)
+    }
+    loadExpandedState()
+  }, [])
+
+  // Save expanded state when it changes
+  useEffect(() => {
+    StorageService.savePreference(PREFERENCE_KEYS.recentsExpanded, isExpanded)
+  }, [isExpanded])
 
   // Get drawing objects for recent numbers
   const recentDrawings = recents

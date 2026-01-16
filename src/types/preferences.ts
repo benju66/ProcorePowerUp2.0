@@ -31,4 +31,6 @@ export const PREFERENCE_KEYS = {
   openInBackground: 'openInBackground',
   showRFIsTab: 'showRFIsTab',
   showCostTab: 'showCostTab',
+  recentsExpanded: 'recentsExpanded',
+  favoritesExpanded: 'favoritesExpanded',
 } as const

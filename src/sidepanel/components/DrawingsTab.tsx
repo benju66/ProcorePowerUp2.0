@@ -7,6 +7,7 @@ import { StatusDot } from './StatusDot'
 import { ContextMenu } from './ContextMenu'
 import { RecentsSection } from './RecentsSection'
 import { FavoritesSection } from './FavoritesSection'
+import { focusTabBar } from './TabBar'
 import { useStatusColors } from '../hooks/useStatusColors'
 import { useRecents } from '../hooks/useRecents'
 import { useFavorites } from '../hooks/useFavorites'
@@ -15,6 +16,7 @@ import {
   navigateToNext,
   findParentHeader
 } from '../hooks/useKeyboardNavigation'
+import { useDragAutoScroll } from '../hooks/useDragAutoScroll'
 import { getDisciplineColor } from '../utils/discipline'
 
 interface DrawingsTabProps {
@@ -36,6 +38,24 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
 
   // Ref to scrollable container for drag auto-scroll and keyboard navigation
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll hook for drag and drop - attached at container level for full coverage
+  const { handleDragOver: handleAutoScrollDragOver, handleDragEnd: handleAutoScrollDragEnd } = useDragAutoScroll(
+    scrollContainerRef,
+    { threshold: 50, scrollSpeed: 8, enabled: true }
+  )
+
+  // Global drag end handler to stop auto-scroll
+  useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      handleAutoScrollDragEnd()
+    }
+    
+    document.addEventListener('dragend', handleGlobalDragEnd)
+    return () => {
+      document.removeEventListener('dragend', handleGlobalDragEnd)
+    }
+  }, [handleAutoScrollDragEnd])
 
   // Status colors and recents hooks
   const { colors: statusColors, cycleColor } = useStatusColors(projectId)
@@ -363,6 +383,9 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                   focusFirst(scrollContainerRef.current)
                 }
               }}
+              onArrowUp={() => {
+                focusTabBar()
+              }}
             />
           </div>
         </div>
@@ -396,6 +419,12 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
         <div 
           ref={scrollContainerRef} 
           className="flex-1 overflow-y-auto"
+          onDragOverCapture={(e) => {
+            // Auto-scroll during drag - uses capture phase to run before child handlers
+            // This ensures scrolling works regardless of which element is under the cursor
+            e.preventDefault()
+            handleAutoScrollDragOver(e as DragEvent)
+          }}
           onClick={(e) => {
             // Click-to-focus: Focus first element when clicking on non-interactive area
             const target = e.target as HTMLElement

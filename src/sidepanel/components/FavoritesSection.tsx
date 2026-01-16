@@ -1,11 +1,12 @@
-import { useState, useCallback, useEffect, useRef } from 'preact/hooks'
+import { useState, useCallback, useEffect } from 'preact/hooks'
 import type { Drawing, FavoriteFolder, StatusColor } from '@/types'
 import { StatusDot } from './StatusDot'
 import { FolderInput } from './FolderInput'
 import { useStatusColors } from '../hooks/useStatusColors'
 import { useFavorites } from '../hooks/useFavorites'
-import { useDragAutoScroll } from '../hooks/useDragAutoScroll'
 import { navigateToNext, findParentHeader } from '../hooks/useKeyboardNavigation'
+import { StorageService } from '@/services'
+import { PREFERENCE_KEYS } from '@/types/preferences'
 
 interface FavoritesSectionProps {
   folders: FavoriteFolder[]
@@ -16,35 +17,32 @@ interface FavoritesSectionProps {
 }
 
 export function FavoritesSection({ folders, drawings, projectId, onDrawingClick, scrollContainerRef }: FavoritesSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set())
   const [dragOverFolderId, setDragOverFolderId] = useState<number | null>(null)
   const [showFolderInput, setShowFolderInput] = useState(false)
   const { colors: statusColors, cycleColor } = useStatusColors(projectId)
   const { addDrawingToFolder, removeDrawingFromFolder, removeFolder, addFolder } = useFavorites()
 
+  // Load persisted expanded state
+  useEffect(() => {
+    async function loadExpandedState() {
+      const expanded = await StorageService.getPreferences<boolean>(
+        PREFERENCE_KEYS.favoritesExpanded,
+        false // Default to collapsed
+      )
+      setIsExpanded(expanded)
+    }
+    loadExpandedState()
+  }, [])
+
+  // Save expanded state when it changes
+  useEffect(() => {
+    StorageService.savePreference(PREFERENCE_KEYS.favoritesExpanded, isExpanded)
+  }, [isExpanded])
+
   // Ensure folders is always an array (defensive check)
   const safeFolders = folders || []
-  
-  // Auto-scroll hook for drag and drop
-  const defaultScrollRef = useRef<HTMLElement | null>(null)
-  const effectiveScrollRef = scrollContainerRef || defaultScrollRef
-  const { handleDragOver: handleAutoScrollDragOver, handleDragEnd: handleAutoScrollDragEnd } = useDragAutoScroll(
-    effectiveScrollRef,
-    { threshold: 50, scrollSpeed: 8, enabled: true }
-  )
-  
-  // Global drag end handler to stop auto-scroll
-  useEffect(() => {
-    const handleGlobalDragEnd = () => {
-      handleAutoScrollDragEnd()
-    }
-    
-    document.addEventListener('dragend', handleGlobalDragEnd)
-    return () => {
-      document.removeEventListener('dragend', handleGlobalDragEnd)
-    }
-  }, [handleAutoScrollDragEnd])
   
   // Debug logging
   useEffect(() => {
@@ -170,14 +168,7 @@ export function FavoritesSection({ folders, drawings, projectId, onDrawingClick,
       )}
 
       {isExpanded && (
-        <div 
-          className="bg-white dark:bg-gray-900"
-          onDragOver={(e) => {
-            // Enable auto-scroll when dragging anywhere in the favorites section
-            e.preventDefault()
-            handleAutoScrollDragOver(e as DragEvent)
-          }}
-        >
+        <div className="bg-white dark:bg-gray-900">
           {safeFolders.length === 0 ? (
             <div className="px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500">
               No folders yet. Click the + button above or create one in Settings.
@@ -198,8 +189,6 @@ export function FavoritesSection({ folders, drawings, projectId, onDrawingClick,
                   e.preventDefault()
                   e.stopPropagation()
                   setDragOverFolderId(folder.id)
-                  // Enable auto-scroll when dragging over folder
-                  handleAutoScrollDragOver(e as DragEvent)
                 }}
                 onDragLeave={(e) => {
                   // Only clear drag state if actually leaving the folder element
@@ -210,13 +199,11 @@ export function FavoritesSection({ folders, drawings, projectId, onDrawingClick,
                   }
                 }}
                 onDragEnd={() => {
-                  handleAutoScrollDragEnd()
                   setDragOverFolderId(null)
                 }}
                 onDrop={async (e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  handleAutoScrollDragEnd()
                   setDragOverFolderId(null)
                   const drawingNum = e.dataTransfer?.getData("text/plain")
                   if (drawingNum) {

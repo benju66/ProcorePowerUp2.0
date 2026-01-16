@@ -3,9 +3,10 @@ interface SearchInputProps {
   onChange: (value: string) => void
   placeholder?: string
   onArrowDown?: () => void
+  onArrowUp?: () => void
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Search...', onArrowDown }: SearchInputProps) {
+export function SearchInput({ value, onChange, placeholder = 'Search...', onArrowDown, onArrowUp }: SearchInputProps) {
   return (
     <div className="relative">
       <svg
@@ -30,9 +31,14 @@ export function SearchInput({ value, onChange, placeholder = 'Search...', onArro
             e.preventDefault()
             onArrowDown()
           }
+          if (e.key === 'ArrowUp' && onArrowUp) {
+            e.preventDefault()
+            onArrowUp()
+          }
         }}
         placeholder={placeholder}
-        className="search-input pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:ring-blue-400"
+        className="search-input dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:ring-blue-400"
+        data-search-input
       />
       {value && (
         <button
