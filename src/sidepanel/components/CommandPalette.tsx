@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
 import { useCommandPalette } from '../hooks/useCommandPalette'
-import { StorageService } from '@/services'
-import { PREFERENCE_KEYS } from '@/types/preferences'
 import { getDisciplineColor } from '../utils/discipline'
 import type { CommandPaletteResult } from '@/types'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
@@ -84,20 +82,18 @@ export function CommandPalette({
 
   const handleResultClick = async (result: CommandPaletteResult) => {
     try {
-      const openInBackground = await StorageService.getPreferences<boolean>(
-        PREFERENCE_KEYS.openInBackground,
-        false
-      )
+      // Use OPEN_DRAWING action - background script handles storage access
+      // This works in both sidepanel and overlay contexts
+      const response = await chrome.runtime.sendMessage({
+        action: 'OPEN_DRAWING',
+        projectId,
+        drawingId: result.drawing.id,
+      })
       
-      const project = await StorageService.getProject(projectId!)
-      if (project?.drawingAreaId) {
-        const url = `https://app.procore.com/${projectId}/project/drawing_areas/${project.drawingAreaId}/drawing_log/view_fullscreen/${result.drawing.id}`
-        chrome.runtime.sendMessage({ 
-          action: 'OPEN_TAB', 
-          url, 
-          background: openInBackground 
-        })
+      if (response?.success) {
         close()
+      } else {
+        console.error('Failed to open drawing:', response?.error)
       }
     } catch (error) {
       console.error('Failed to open drawing:', error)

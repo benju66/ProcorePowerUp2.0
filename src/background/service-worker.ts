@@ -11,6 +11,7 @@
 
 import { StorageService } from '../services/storage'
 import { ApiService } from '../services/api'
+import { PREFERENCE_KEYS } from '../types/preferences'
 import type { WiretapMessage, Drawing, Commitment, DisciplineMap } from '../types'
 
 // ============================================
@@ -744,6 +745,38 @@ async function handleMessage(
         active: !(message.background as boolean),
       })
       return { success: true, tabId: tab.id }
+    }
+
+    case 'OPEN_DRAWING': {
+      // Handle drawing open request - used by command palette overlay
+      // Background has full storage access, so we look up drawingAreaId and preferences here
+      const projectId = message.projectId as string
+      const drawingId = message.drawingId as number
+      
+      if (!projectId || !drawingId) {
+        return { success: false, error: 'Missing projectId or drawingId' }
+      }
+      
+      try {
+        const [project, openInBackground] = await Promise.all([
+          StorageService.getProject(projectId),
+          StorageService.getPreferences<boolean>(PREFERENCE_KEYS.openInBackground, false)
+        ])
+        
+        if (!project?.drawingAreaId) {
+          return { success: false, error: 'Drawing area ID not found for project' }
+        }
+        
+        const url = `https://app.procore.com/${projectId}/project/drawing_areas/${project.drawingAreaId}/drawing_log/view_fullscreen/${drawingId}`
+        const tab = await chrome.tabs.create({ 
+          url, 
+          active: !openInBackground 
+        })
+        return { success: true, tabId: tab.id }
+      } catch (error) {
+        console.error('PP Background: Failed to open drawing:', error)
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
     }
 
     case 'POP_OUT': {
