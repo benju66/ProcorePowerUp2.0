@@ -11,11 +11,15 @@ export type ResolvedTheme = 'light' | 'dark'
 export interface UserPreferences {
   theme: ThemeMode
   openInBackground: boolean
+  showRFIsTab: boolean
+  showCostTab: boolean
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'auto',
   openInBackground: false,
+  showRFIsTab: false,
+  showCostTab: false,
 }
 
 /**
@@ -25,4 +29,6 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 export const PREFERENCE_KEYS = {
   theme: 'theme',
   openInBackground: 'openInBackground',
+  showRFIsTab: 'showRFIsTab',
+  showCostTab: 'showCostTab',
 } as const

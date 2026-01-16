@@ -123,3 +123,35 @@ body {
 .badge-red {
   @apply dark:bg-red-900 dark:text-red-200;
 }
+
+/* ============================================
+   KEYBOARD NAVIGATION FOCUS STYLES
+   ============================================ */
+
+/* Focus styles for keyboard-navigable elements */
+[data-focusable] {
+  @apply outline-none;
+}
+
+[data-focusable]:focus {
+  @apply ring-2 ring-blue-500 dark:ring-blue-400 ring-inset;
+}
+
+/* Ensure focus is visible with focus-visible for keyboard-only focus */
+[data-focusable]:focus:not(:focus-visible) {
+  @apply ring-0;
+}
+
+[data-focusable]:focus-visible {
+  @apply ring-2 ring-blue-500 dark:ring-blue-400 ring-inset;
+}
+
+/* Section header focus styles */
+[data-section-header]:focus {
+  @apply bg-blue-50 dark:bg-blue-900/30;
+}
+
+/* Drawing row focus styles - ensure visibility on colored backgrounds */
+.drawing-row:focus {
+  @apply ring-2 ring-blue-500 dark:ring-blue-400 ring-inset;
+}

@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useRef } from 'preact/hooks'
 import { useTheme } from '../contexts/ThemeContext'
+import { useTabVisibility } from '../contexts/TabVisibilityContext'
 import { useFavorites } from '../hooks/useFavorites'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
@@ -21,6 +22,7 @@ interface SettingsProps {
 
 export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: SettingsProps) {
   const { theme, setTheme } = useTheme()
+  const { showRFIsTab, showCostTab, setShowRFIsTab, setShowCostTab } = useTabVisibility()
   const { folders, addFolder, removeFolder, addDrawingToFolder, isLoading: favoritesLoading } = useFavorites()
   const [openInBackground, setOpenInBackground] = useState(false)
   const [showFolderInput, setShowFolderInput] = useState(false)
@@ -320,47 +322,51 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
                 )}
               </button>
               
-              <button
-                onClick={() => handleScan('rfis')}
-                disabled={scanState.isScanning}
-                className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                role="menuitem"
-              >
-                {scanState.isScanning && scanState.type === 'rfis' ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    <span>{scanState.percent}%</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>Scan RFIs</span>
-                  </>
-                )}
-              </button>
+              {showRFIsTab && (
+                <button
+                  onClick={() => handleScan('rfis')}
+                  disabled={scanState.isScanning}
+                  className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                  role="menuitem"
+                >
+                  {scanState.isScanning && scanState.type === 'rfis' ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span>{scanState.percent}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Scan RFIs</span>
+                    </>
+                  )}
+                </button>
+              )}
               
-              <button
-                onClick={() => handleScan('commitments')}
-                disabled={scanState.isScanning}
-                className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                role="menuitem"
-              >
-                {scanState.isScanning && scanState.type === 'commitments' ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    <span>{scanState.percent}%</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>Scan Commitments</span>
-                  </>
-                )}
-              </button>
+              {showCostTab && (
+                <button
+                  onClick={() => handleScan('commitments')}
+                  disabled={scanState.isScanning}
+                  className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                  role="menuitem"
+                >
+                  {scanState.isScanning && scanState.type === 'commitments' ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span>{scanState.percent}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Scan Commitments</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
             
             {scanState.status && (
@@ -393,9 +399,40 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
               className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
             />
           </label>
-          <div className="px-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <div className="px-2 mt-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
             When enabled, links open without switching tabs
           </div>
+          
+          {/* Tab Visibility Toggles */}
+          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+            Tab Visibility
+          </div>
+          <label 
+            className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+            role="menuitemcheckbox"
+            aria-checked={showRFIsTab}
+          >
+            <span>Show RFIs Tab</span>
+            <input
+              type="checkbox"
+              checked={showRFIsTab}
+              onChange={(e) => setShowRFIsTab((e.target as HTMLInputElement).checked)}
+              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
+            />
+          </label>
+          <label 
+            className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+            role="menuitemcheckbox"
+            aria-checked={showCostTab}
+          >
+            <span>Show Cost Tab</span>
+            <input
+              type="checkbox"
+              checked={showCostTab}
+              onChange={(e) => setShowCostTab((e.target as HTMLInputElement).checked)}
+              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
+            />
+          </label>
         </div>
 
         {/* Favorites Section */}

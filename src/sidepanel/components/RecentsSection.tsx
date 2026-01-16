@@ -2,15 +2,17 @@ import { useState } from 'preact/hooks'
 import type { Drawing, StatusColor } from '@/types'
 import { StatusDot } from './StatusDot'
 import { useStatusColors } from '../hooks/useStatusColors'
+import { navigateToNext, findParentHeader } from '../hooks/useKeyboardNavigation'
 
 interface RecentsSectionProps {
   recents: string[]
   drawings: Drawing[]
   projectId: string
   onDrawingClick: (drawing: Drawing) => void
+  scrollContainerRef?: { current: HTMLElement | null }
 }
 
-export function RecentsSection({ recents, drawings, projectId, onDrawingClick }: RecentsSectionProps) {
+export function RecentsSection({ recents, drawings, projectId, onDrawingClick, scrollContainerRef }: RecentsSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const { colors: statusColors, cycleColor } = useStatusColors(projectId)
 
@@ -23,10 +25,48 @@ export function RecentsSection({ recents, drawings, projectId, onDrawingClick }:
   if (recentDrawings.length === 0) return null
 
   return (
-    <div className="border-b border-gray-200 dark:border-gray-700">
+    <div data-section className="border-b border-gray-200 dark:border-gray-700">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full px-3 py-2 flex items-center gap-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+        tabIndex={0}
+        data-focusable
+        data-section-header
+        aria-expanded={isExpanded}
+        onKeyDown={(e) => {
+          const target = e.currentTarget as HTMLElement
+          switch (e.key) {
+            case 'ArrowDown':
+              e.preventDefault()
+              if (scrollContainerRef?.current) {
+                navigateToNext(scrollContainerRef.current, target, 'down')
+              }
+              break
+            case 'ArrowUp':
+              e.preventDefault()
+              if (scrollContainerRef?.current) {
+                navigateToNext(scrollContainerRef.current, target, 'up')
+              }
+              break
+            case 'ArrowLeft':
+              e.preventDefault()
+              if (isExpanded) {
+                setIsExpanded(false)
+              }
+              break
+            case 'ArrowRight':
+              e.preventDefault()
+              if (!isExpanded) {
+                setIsExpanded(true)
+              }
+              break
+            case 'Enter':
+            case ' ':
+              e.preventDefault()
+              setIsExpanded(!isExpanded)
+              break
+          }
+        }}
       >
         <span className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}>
           ▶
@@ -56,6 +96,8 @@ export function RecentsSection({ recents, drawings, projectId, onDrawingClick }:
             return (
               <div
                 key={drawing.id}
+                tabIndex={0}
+                data-focusable
                 draggable={true}
                 onDragStart={(e) => {
                   e.stopPropagation()
@@ -65,7 +107,36 @@ export function RecentsSection({ recents, drawings, projectId, onDrawingClick }:
                   }
                 }}
                 onClick={() => onDrawingClick(drawing)}
-                className={`px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group ${
+                onKeyDown={(e) => {
+                  const target = e.currentTarget as HTMLElement
+                  switch (e.key) {
+                    case 'Enter':
+                      e.preventDefault()
+                      onDrawingClick(drawing)
+                      break
+                    case 'ArrowDown':
+                      e.preventDefault()
+                      if (scrollContainerRef?.current) {
+                        navigateToNext(scrollContainerRef.current, target, 'down')
+                      }
+                      break
+                    case 'ArrowUp':
+                      e.preventDefault()
+                      if (scrollContainerRef?.current) {
+                        navigateToNext(scrollContainerRef.current, target, 'up')
+                      }
+                      break
+                    case 'ArrowLeft':
+                      e.preventDefault()
+                      const parentHeader = findParentHeader(target)
+                      if (parentHeader) {
+                        parentHeader.focus()
+                        parentHeader.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+                      }
+                      break
+                  }
+                }}
+                className={`drawing-row px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group ${
                   statusColor ? rowColorClasses[statusColor] : ''
                 }`}
               >

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'preact/hooks'
+import { useState, useEffect, useCallback, useMemo } from 'preact/hooks'
 import type { TabInfo, Project } from '@/types'
 import { StorageService } from '@/services'
 import { Header } from './components/Header'
@@ -9,6 +9,7 @@ import { CostTab } from './components/CostTab'
 import { ProjectSelector } from './components/ProjectSelector'
 import { CommandPalette } from './components/CommandPalette'
 import { FavoritesProvider } from './contexts/FavoritesContext'
+import { useTabVisibility } from './contexts/TabVisibilityContext'
 
 const TABS: TabInfo[] = [
   { id: 'drawings', label: 'Drawings', icon: '📐' },
@@ -42,6 +43,27 @@ export function App() {
   
   // Data version counter - increment to trigger tab refreshes
   const [dataVersion, setDataVersion] = useState(0)
+  
+  // Tab visibility from context
+  const { showRFIsTab, showCostTab } = useTabVisibility()
+  
+  // Filter tabs based on visibility settings
+  const visibleTabs = useMemo(() => 
+    TABS.filter(tab => {
+      if (tab.id === 'rfis') return showRFIsTab
+      if (tab.id === 'cost') return showCostTab
+      return true // Always show drawings
+    }), [showRFIsTab, showCostTab])
+  
+  // Handle edge case: if current tab is hidden, switch to drawings
+  useEffect(() => {
+    if (activeTab === 'rfis' && !showRFIsTab) {
+      setActiveTab('drawings')
+    }
+    if (activeTab === 'cost' && !showCostTab) {
+      setActiveTab('drawings')
+    }
+  }, [showRFIsTab, showCostTab, activeTab])
 
   // Initialize and detect current project
   useEffect(() => {
@@ -240,7 +262,7 @@ export function App() {
         )}
 
         <TabBar 
-          tabs={TABS} 
+          tabs={visibleTabs} 
           activeTab={activeTab} 
           onTabChange={setActiveTab} 
         />

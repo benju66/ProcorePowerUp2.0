@@ -10,6 +10,11 @@ import { FavoritesSection } from './FavoritesSection'
 import { useStatusColors } from '../hooks/useStatusColors'
 import { useRecents } from '../hooks/useRecents'
 import { useFavorites } from '../hooks/useFavorites'
+import { 
+  focusFirst, 
+  navigateToNext,
+  findParentHeader
+} from '../hooks/useKeyboardNavigation'
 import { getDisciplineColor } from '../utils/discipline'
 
 interface DrawingsTabProps {
@@ -29,7 +34,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   const [expandedDisciplines, setExpandedDisciplines] = useState<Set<string>>(new Set())
   const [allExpanded, setAllExpanded] = useState(false)
 
-  // Ref to scrollable container for drag auto-scroll
+  // Ref to scrollable container for drag auto-scroll and keyboard navigation
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Status colors and recents hooks
@@ -353,6 +358,11 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
               value={searchQuery}
               onChange={setSearchQuery}
               placeholder="Filter drawings..."
+              onArrowDown={() => {
+                if (scrollContainerRef.current) {
+                  focusFirst(scrollContainerRef.current)
+                }
+              }}
             />
           </div>
         </div>
@@ -383,7 +393,19 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
           No drawings match "{searchQuery}"
         </div>
       ) : (
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        <div 
+          ref={scrollContainerRef} 
+          className="flex-1 overflow-y-auto"
+          onClick={(e) => {
+            // Click-to-focus: Focus first element when clicking on non-interactive area
+            const target = e.target as HTMLElement
+            if (!target.closest('button, a, input, [data-focusable]')) {
+              if (scrollContainerRef.current) {
+                focusFirst(scrollContainerRef.current)
+              }
+            }
+          }}
+        >
           {/* Favorites Section - Always show, even when empty */}
           <FavoritesSection
             folders={folders || []}
@@ -400,6 +422,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
               drawings={drawings}
               projectId={projectId}
               onDrawingClick={handleDrawingClick}
+              scrollContainerRef={scrollContainerRef}
             />
           )}
 
@@ -409,11 +432,49 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             const colorClass = getDisciplineColor(name)
             
             return (
-              <div key={name} className="border-b border-gray-100 dark:border-gray-700">
+              <div key={name} data-section className="border-b border-gray-100 dark:border-gray-700">
                 {/* Discipline Header - STICKY */}
                 <button
                   onClick={() => toggleDiscipline(name)}
                   className="sticky top-0 z-10 w-full px-3 py-2 flex items-center gap-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                  tabIndex={0}
+                  data-focusable
+                  data-section-header
+                  aria-expanded={isExpanded}
+                  onKeyDown={(e) => {
+                    const target = e.currentTarget as HTMLElement
+                    switch (e.key) {
+                      case 'ArrowDown':
+                        e.preventDefault()
+                        if (scrollContainerRef.current) {
+                          navigateToNext(scrollContainerRef.current, target, 'down')
+                        }
+                        break
+                      case 'ArrowUp':
+                        e.preventDefault()
+                        if (scrollContainerRef.current) {
+                          navigateToNext(scrollContainerRef.current, target, 'up')
+                        }
+                        break
+                      case 'ArrowLeft':
+                        e.preventDefault()
+                        if (isExpanded) {
+                          toggleDiscipline(name)
+                        }
+                        break
+                      case 'ArrowRight':
+                        e.preventDefault()
+                        if (!isExpanded) {
+                          toggleDiscipline(name)
+                        }
+                        break
+                      case 'Enter':
+                      case ' ':
+                        e.preventDefault()
+                        toggleDiscipline(name)
+                        break
+                    }
+                  }}
                 >
                   <span className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}>
                     ▶
@@ -450,6 +511,8 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                       return (
                         <div
                           key={drawing.id}
+                          tabIndex={0}
+                          data-focusable
                           draggable={true}
                           onDragStart={(e) => {
                             e.stopPropagation()
@@ -462,12 +525,41 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                             // Drag ended - auto-scroll will be handled by drop target
                           }}
                           onClick={() => handleDrawingClick(drawing)}
+                          onKeyDown={(e) => {
+                            const target = e.currentTarget as HTMLElement
+                            switch (e.key) {
+                              case 'Enter':
+                                e.preventDefault()
+                                handleDrawingClick(drawing)
+                                break
+                              case 'ArrowDown':
+                                e.preventDefault()
+                                if (scrollContainerRef.current) {
+                                  navigateToNext(scrollContainerRef.current, target, 'down')
+                                }
+                                break
+                              case 'ArrowUp':
+                                e.preventDefault()
+                                if (scrollContainerRef.current) {
+                                  navigateToNext(scrollContainerRef.current, target, 'up')
+                                }
+                                break
+                              case 'ArrowLeft':
+                                e.preventDefault()
+                                const parentHeader = findParentHeader(target)
+                                if (parentHeader) {
+                                  parentHeader.focus()
+                                  parentHeader.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+                                }
+                                break
+                            }
+                          }}
                           onContextMenu={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
                             setContextMenu({ x: e.clientX, y: e.clientY, drawing })
                           }}
-                          className={`px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group ${
+                          className={`drawing-row px-3 py-2 pl-10 border-b border-gray-50 dark:border-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2 group ${
                             statusColor ? rowColorClasses[statusColor] : ''
                           }`}
                         >

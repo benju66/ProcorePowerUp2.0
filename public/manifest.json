@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Procore Power-Up 2.0",
+  "name": "⚡ Power-Up 2.0",
   "version": "2.0.0",
   "description": "High-performance side panel for Procore with instant access to Drawings, RFIs, and Commitments.",
   "icons": {
@@ -9,7 +9,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Open Procore Power-Up",
+    "default_title": "Open Power-Up",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png"
