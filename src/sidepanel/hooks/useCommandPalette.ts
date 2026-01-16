@@ -44,12 +44,16 @@ const defaultDataProvider = new DefaultDataProvider()
 
 export function useCommandPalette(
   projectId: string | null,
-  dataProvider?: CommandPaletteDataProvider
+  dataProvider?: CommandPaletteDataProvider,
+  options?: { 
+    defaultOpen?: boolean
+    onClose?: () => void 
+  }
 ) {
   // Use provided data provider or default to StorageService
   const provider = dataProvider || defaultDataProvider
   
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(options?.defaultOpen ?? false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<CommandPaletteResult[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -269,7 +273,8 @@ export function useCommandPalette(
     setSearchQuery('')
     setSelectedIndex(0)
     setSearchResults([])
-  }, [])
+    options?.onClose?.()
+  }, [options?.onClose])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!isOpen) return

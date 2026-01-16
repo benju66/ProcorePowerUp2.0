@@ -15,9 +15,25 @@ interface CommandPaletteProps {
    * Defaults to true for side panel usage.
    */
   usePortal?: boolean
+  /**
+   * Initial open state. Set to true when rendering in overlay.
+   * Defaults to false for side panel usage.
+   */
+  initialIsOpen?: boolean
+  /**
+   * Callback when the command palette closes.
+   * Used by overlay to hide the container.
+   */
+  onClose?: () => void
 }
 
-export function CommandPalette({ projectId, dataProvider, usePortal = true }: CommandPaletteProps) {
+export function CommandPalette({ 
+  projectId, 
+  dataProvider, 
+  usePortal = true,
+  initialIsOpen = false,
+  onClose,
+}: CommandPaletteProps) {
   const {
     isOpen,
     searchQuery,
@@ -28,7 +44,10 @@ export function CommandPalette({ projectId, dataProvider, usePortal = true }: Co
     open,
     close,
     handleKeyDown,
-  } = useCommandPalette(projectId, dataProvider)
+  } = useCommandPalette(projectId, dataProvider, { 
+    defaultOpen: initialIsOpen,
+    onClose,
+  })
 
   const inputRef = useRef<HTMLInputElement>(null)
 

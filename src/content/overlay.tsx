@@ -174,6 +174,8 @@ function OverlayApp({ onVisibilityChange }: { onVisibilityChange: (visible: bool
       projectId={projectId} 
       dataProvider={dataProvider}
       usePortal={false}
+      initialIsOpen={true}
+      onClose={() => setIsVisible(false)}
     />
   )
 }
