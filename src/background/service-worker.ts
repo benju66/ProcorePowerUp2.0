@@ -516,13 +516,20 @@ async function openSidePanel(tabId: number): Promise<boolean> {
   }
 }
 
-// Close side panel by sending message to panel to close itself
-async function closeSidePanel(_tabId: number): Promise<boolean> {
+// Close side panel by sending message through port to panel to close itself
+async function closeSidePanel(tabId: number): Promise<boolean> {
   try {
-    // Send message to the side panel to close itself
-    await chrome.runtime.sendMessage({ type: 'CLOSE_SIDEPANEL' })
-    // Note: notifyPanelState will be called when port disconnects
-    return true
+    const port = panelPorts.get(tabId)
+    if (port) {
+      // Send close message through the established port connection
+      port.postMessage({ type: 'CLOSE_SIDEPANEL' })
+      // Note: notifyPanelState will be called when port disconnects after window.close()
+      return true
+    } else {
+      // Fallback: try runtime message (less reliable)
+      await chrome.runtime.sendMessage({ type: 'CLOSE_SIDEPANEL' })
+      return true
+    }
   } catch (error) {
     console.error('PP: Failed to close side panel:', error)
     return false

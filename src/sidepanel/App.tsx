@@ -192,6 +192,11 @@ export function App() {
       if (message.type === 'OPEN_COMMAND_PALETTE') {
         window.dispatchEvent(new CustomEvent('open-command-palette'))
       }
+      // Handle close request from background via port
+      if (message.type === 'CLOSE_SIDEPANEL') {
+        console.log('PP: Closing side panel via port message')
+        window.close()
+      }
     })
     
     return () => port.disconnect()
