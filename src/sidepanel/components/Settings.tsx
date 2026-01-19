@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks'
 import { useTheme } from '../contexts/ThemeContext'
 import { useTabVisibility } from '../contexts/TabVisibilityContext'
+import { useMascot } from '../contexts/MascotContext'
 import { useFavorites } from '../hooks/useFavorites'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
@@ -23,6 +24,7 @@ interface SettingsProps {
 export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: SettingsProps) {
   const { theme, setTheme } = useTheme()
   const { showRFIsTab, showCostTab, setShowRFIsTab, setShowCostTab } = useTabVisibility()
+  const { animationLevel, setAnimationLevel, triggerMood } = useMascot()
   const { folders, addFolder, removeFolder, addDrawingToFolder, isLoading: favoritesLoading } = useFavorites()
   const [openInBackground, setOpenInBackground] = useState(false)
   const [showFloatingButton, setShowFloatingButton] = useState(true)
@@ -291,7 +293,7 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
   return (
     <div
       ref={dropdownRef}
-      className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[220px] p-3"
+      className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[220px] max-h-[calc(100vh-60px)] overflow-y-auto p-3"
       role="menu"
       aria-label="Settings"
     >
@@ -321,6 +323,46 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
               </label>
             ))}
           </div>
+        </div>
+
+        {/* Mascot Section */}
+        <div>
+          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+            Mascot
+          </div>
+          <div className="space-y-1">
+            {(['off', 'subtle', 'normal'] as const).map((option) => (
+              <label
+                key={option}
+                className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+                role="menuitemradio"
+                aria-checked={animationLevel === option}
+              >
+                <input
+                  type="radio"
+                  name="animationLevel"
+                  value={option}
+                  checked={animationLevel === option}
+                  onChange={() => setAnimationLevel(option)}
+                  className="w-4 h-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
+                />
+                <span>
+                  {option === 'off' && 'Off'}
+                  {option === 'subtle' && 'Subtle'}
+                  {option === 'normal' && 'Normal'}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="px-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Controls the ⚡ mascot animations
+          </div>
+          <button
+            onClick={() => triggerMood('happy', 1000)}
+            className="mt-2 px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
+          >
+            Test Animation
+          </button>
         </div>
 
         {/* Data Sync Section */}

@@ -1,122 +1,47 @@
-import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
+import { useState, useRef } from 'preact/hooks'
 import { Settings } from './Settings'
+import { useMascot } from '../contexts/MascotContext'
 
 interface HeaderProps {
   onPopOut: () => void
   currentProjectId?: string | null
 }
 
-type MascotMood = 'idle' | 'happy' | 'super' | 'sleeping'
-
 export function Header({ onPopOut, currentProjectId }: HeaderProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   
-  // Mascot State
-  const [mood, setMood] = useState<MascotMood>('idle')
-  const idleTimerRef = useRef<number | null>(null)
-  const moodRef = useRef<MascotMood>('idle') // Track current mood for priority checks
-  
-  // Keep moodRef in sync
-  useEffect(() => {
-    moodRef.current = mood
-  }, [mood])
+  // Get mascot state from context
+  const { mood, animationLevel, triggerMood } = useMascot()
 
-  // Trigger mood animation with priority handling
-  const triggerMood = useCallback((newMood: MascotMood, duration: number) => {
-    // Don't interrupt super shimmer with lower priority animations
-    // Use ref to get current value without causing re-renders
-    if (moodRef.current === 'super' && newMood === 'happy') {
-      return
-    }
-    
-    setMood(newMood)
-    
-    // Clear any existing idle timer when active animation starts
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current)
-      idleTimerRef.current = null
-    }
-    
-    setTimeout(() => {
-      setMood(prev => prev === newMood ? 'idle' : prev)
-    }, duration)
-  }, []) // No dependencies - uses refs for current values
-
-  // 1. Listen for Extension Events (Data Saved, Scan Complete)
-  useEffect(() => {
-    const handleMessage = (message: { type: string; payload?: unknown }) => {
-      // Data Saved -> Happy Zap (Small)
-      if (message.type === 'DATA_SAVED') {
-        triggerMood('happy', 1000)
-      }
-      
-      // Scan Progress -> Check for Complete -> Super Shimmer (Big)
-      if (message.type === 'SCAN_PROGRESS') {
-        const payload = message.payload as { status?: string; scanType?: string }
-        if (payload.status === 'complete' || payload.status === 'timeout') {
-          triggerMood('super', 2000)
-        }
-      }
-    }
-    
-    chrome.runtime.onMessage.addListener(handleMessage)
-    return () => chrome.runtime.onMessage.removeListener(handleMessage)
-  }, [triggerMood])
-
-  // 2. Idle Timer Logic - Uses functional updates to avoid stale closures
-  useEffect(() => {
-    const resetIdleTimer = () => {
-      // Clear any existing timer
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current)
-        idleTimerRef.current = null
-      }
-      
-      // Only set idle if not in active animation - use functional update to get current state
-      setMood(prev => {
-        // Don't interrupt active animations
-        if (prev === 'happy' || prev === 'super') {
-          return prev
-        }
-        return 'idle'
-      })
-      
-      // Set new timer for sleeping state
-      idleTimerRef.current = window.setTimeout(() => {
-        // Only set sleeping if still idle (check current state)
-        setMood(prev => prev === 'idle' ? 'sleeping' : prev)
-      }, 10000)
-    }
-
-    // Reset timer on interaction
-    window.addEventListener('mousemove', resetIdleTimer)
-    window.addEventListener('click', resetIdleTimer)
-    window.addEventListener('keydown', resetIdleTimer)
-    
-    resetIdleTimer() // Start initial timer
-
-    return () => {
-      window.removeEventListener('mousemove', resetIdleTimer)
-      window.removeEventListener('click', resetIdleTimer)
-      window.removeEventListener('keydown', resetIdleTimer)
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current)
-      }
-    }
-  }, []) // Empty deps - only run once on mount
-
-  // Calculate CSS class based on current mood
+  // Calculate CSS class based on current mood and animation level
   const getMascotClass = () => {
+    // Base tier class for CSS targeting
+    const tierClass = `mascot-${animationLevel}`
+    
+    // If animations are off, only show static colors
+    if (animationLevel === 'off') {
+      switch (mood) {
+        case 'happy':
+        case 'super':
+          return `${tierClass} text-yellow-500`
+        case 'sleeping':
+          return `${tierClass} text-yellow-500/60`
+        default:
+          return `${tierClass} text-gray-400 dark:text-gray-500`
+      }
+    }
+    
+    // Subtle and Normal tiers get animation classes
     switch (mood) {
       case 'happy': 
-        return 'animate-happy-zap text-yellow-500'
+        return `${tierClass} animate-happy-zap text-yellow-500`
       case 'super': 
-        return 'animate-super-shimmer text-yellow-500'
+        return `${tierClass} animate-super-shimmer text-yellow-500`
       case 'sleeping': 
-        return 'animate-idle text-yellow-500/80' // Dimmer when sleeping
+        return `${tierClass} animate-idle text-yellow-500/80`
       default: 
-        return 'text-gray-400 dark:text-gray-500 group-hover:text-yellow-500 transition-colors'
+        return `${tierClass} text-gray-400 dark:text-gray-500 group-hover:text-yellow-500 transition-colors`
     }
   }
 

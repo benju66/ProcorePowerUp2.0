@@ -199,7 +199,11 @@ body {
    MASCOT ANIMATIONS
    ============================================ */
 
-/* 1. The Happy Zap (Data Saved) */
+/* ----------------------------------------
+   KEYFRAMES - Shared animation definitions
+   ---------------------------------------- */
+
+/* Normal: Full happy wiggle */
 @keyframes happy-zap {
   0% { transform: scale(1) rotate(0deg); }
   25% { transform: scale(1.2) rotate(-15deg); }
@@ -208,14 +212,14 @@ body {
   100% { transform: scale(1) rotate(0deg); }
 }
 
-.animate-happy-zap {
-  animation: happy-zap 0.6s cubic-bezier(0.25, 1, 0.5, 1);
-  color: #fbbf24; /* amber-400 */
-  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.6));
+/* Subtle: Gentle pulse only */
+@keyframes happy-zap-subtle {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
 }
 
-/* 2. The Super Shimmer (Scan Complete) */
-/* Using text-shadow instead of background-clip for emoji compatibility */
+/* Normal: Full electric shimmer with scale */
 @keyframes electric-shimmer {
   0% { 
     transform: scale(1);
@@ -241,13 +245,18 @@ body {
   }
 }
 
-.animate-super-shimmer {
-  animation: electric-shimmer 1.5s ease-in-out forwards;
-  color: #fbbf24; /* amber-400 */
-  font-weight: 900;
+/* Subtle: Glow pulse without motion */
+@keyframes electric-shimmer-subtle {
+  0%, 100% { 
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.4);
+  }
+  50% { 
+    text-shadow: 0 0 12px rgba(251, 191, 36, 0.9), 
+                 0 0 16px rgba(255, 255, 255, 0.6);
+  }
 }
 
-/* 3. The Idle Breathe (Waiting) */
+/* Normal: Breathing animation */
 @keyframes idle-breathe {
   0%, 100% { 
     transform: scale(1) translateY(0); 
@@ -259,26 +268,69 @@ body {
   }
 }
 
-.animate-idle {
+/* Subtle: Opacity breathe only */
+@keyframes idle-breathe-subtle {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* ----------------------------------------
+   NORMAL TIER - Full animations
+   ---------------------------------------- */
+
+.mascot-normal .animate-happy-zap,
+.mascot-normal.animate-happy-zap {
+  animation: happy-zap 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  color: #fbbf24;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.6));
+}
+
+.mascot-normal .animate-super-shimmer,
+.mascot-normal.animate-super-shimmer {
+  animation: electric-shimmer 1.5s ease-in-out forwards;
+  color: #fbbf24;
+  font-weight: 900;
+}
+
+.mascot-normal .animate-idle,
+.mascot-normal.animate-idle {
   animation: idle-breathe 3s ease-in-out infinite;
 }
 
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  .animate-happy-zap,
-  .animate-super-shimmer {
-    animation: none;
-    transform: none;
-    text-shadow: none;
-    filter: none;
-  }
-  
-  .animate-idle {
-    animation: idle-breathe-subtle 4s ease-in-out infinite;
-  }
+/* ----------------------------------------
+   SUBTLE TIER - Reduced motion animations
+   ---------------------------------------- */
+
+.mascot-subtle .animate-happy-zap,
+.mascot-subtle.animate-happy-zap {
+  animation: happy-zap-subtle 0.4s ease-out;
+  color: #fbbf24;
+  filter: drop-shadow(0 0 3px rgba(251, 191, 36, 0.4));
 }
 
-@keyframes idle-breathe-subtle {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 1; }
+.mascot-subtle .animate-super-shimmer,
+.mascot-subtle.animate-super-shimmer {
+  animation: electric-shimmer-subtle 1.2s ease-in-out forwards;
+  color: #fbbf24;
+}
+
+.mascot-subtle .animate-idle,
+.mascot-subtle.animate-idle {
+  animation: idle-breathe-subtle 4s ease-in-out infinite;
+}
+
+/* ----------------------------------------
+   OFF TIER - No animations, static colors
+   ---------------------------------------- */
+
+.mascot-off .animate-happy-zap,
+.mascot-off.animate-happy-zap,
+.mascot-off .animate-super-shimmer,
+.mascot-off.animate-super-shimmer,
+.mascot-off .animate-idle,
+.mascot-off.animate-idle {
+  animation: none !important;
+  transform: none !important;
+  text-shadow: none !important;
+  filter: none !important;
 }

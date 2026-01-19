@@ -7,12 +7,14 @@
 
 export type ThemeMode = 'light' | 'dark' | 'auto'
 export type ResolvedTheme = 'light' | 'dark'
+export type AnimationLevel = 'off' | 'subtle' | 'normal'
 
 export interface UserPreferences {
   theme: ThemeMode
   openInBackground: boolean
   showRFIsTab: boolean
   showCostTab: boolean
+  animationLevel: AnimationLevel
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
@@ -20,6 +22,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   openInBackground: false,
   showRFIsTab: false,
   showCostTab: false,
+  animationLevel: 'normal',
 }
 
 /**
@@ -33,4 +36,5 @@ export const PREFERENCE_KEYS = {
   showCostTab: 'showCostTab',
   recentsExpanded: 'recentsExpanded',
   favoritesExpanded: 'favoritesExpanded',
+  animationLevel: 'animationLevel',
 } as const
