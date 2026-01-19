@@ -72,13 +72,26 @@ export function CommandPalette({
     return () => chrome.runtime.onMessage.removeListener(handleMessage)
   }, [open])
 
-  // Handle keyboard navigation
-  useEffect(() => {
-    if (!isOpen) return
-    
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, handleKeyDown])
+  // Handle keyboard events locally on the container to prevent Procore interference
+  // This stops events from bubbling to Procore's document listeners which would
+  // otherwise intercept arrow keys (page navigation) and potentially other keys
+  const onContainerKeyDown = (e: KeyboardEvent) => {
+    // CRITICAL: Stop ALL keyboard events from reaching Procore's document listeners
+    // This prevents arrow keys from changing drawing pages and allows Backspace/Delete to work
+    e.stopPropagation()
+
+    // Handle navigation keys
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Escape') {
+      handleKeyDown(e)
+    } 
+    // Handle Enter for selection
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      handleEnter()
+    }
+    // All other keys (typing, Backspace, Delete, etc.) proceed normally
+    // but stopPropagation above ensures Procore doesn't intercept them
+  }
 
   const handleResultClick = async (result: CommandPaletteResult) => {
     try {
@@ -88,6 +101,7 @@ export function CommandPalette({
         action: 'OPEN_DRAWING',
         projectId,
         drawingId: result.drawing.id,
+        drawingNum: result.drawing.num,
       })
       
       if (response?.success) {
@@ -130,12 +144,7 @@ export function CommandPalette({
           close()
         }
       }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          handleEnter()
-        }
-      }}
+      onKeyDown={onContainerKeyDown as any}
     >
       <div className="w-full max-w-2xl max-h-[60vh] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
         {/* Input */}

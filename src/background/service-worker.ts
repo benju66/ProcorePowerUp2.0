@@ -759,6 +759,7 @@ async function handleMessage(
       // Background has full storage access, so we look up drawingAreaId and preferences here
       const projectId = message.projectId as string
       const drawingId = message.drawingId as number
+      const drawingNum = message.drawingNum as string
       
       if (!projectId || !drawingId) {
         return { success: false, error: 'Missing projectId or drawingId' }
@@ -772,6 +773,11 @@ async function handleMessage(
         
         if (!project?.drawingAreaId) {
           return { success: false, error: 'Drawing area ID not found for project' }
+        }
+        
+        // Add to recents list
+        if (drawingNum) {
+          await StorageService.addRecent(projectId, drawingNum)
         }
         
         const url = `https://app.procore.com/${projectId}/project/drawing_areas/${project.drawingAreaId}/drawing_log/view_fullscreen/${drawingId}`
