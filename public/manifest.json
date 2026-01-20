@@ -22,6 +22,22 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "commands": {
+    "toggle-palette": {
+      "suggested_key": {
+        "default": "Alt+P",
+        "mac": "Alt+P"
+      },
+      "description": "Open Command Palette / Search"
+    },
+    "toggle-sidepanel": {
+      "suggested_key": {
+        "default": "Alt+S",
+        "mac": "Alt+S"
+      },
+      "description": "Toggle Side Panel"
+    }
+  },
   "permissions": [
     "sidePanel",
     "storage",

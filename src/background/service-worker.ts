@@ -689,6 +689,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true // Indicates we will send response asynchronously
   }
 
+  // Handle GET_ALL_PROJECTS from content script (for overlay project switcher)
+  if (message.action === 'GET_ALL_PROJECTS') {
+    (async () => {
+      try {
+        const projects = await StorageService.getAllProjects()
+        sendResponse({ success: true, projects })
+      } catch (error) {
+        console.error('PP Background: Error getting all projects:', error)
+        sendResponse({ 
+          success: false, 
+          error: error instanceof Error ? error.message : String(error) 
+        })
+      }
+    })()
+    
+    return true
+  }
+
   // Handle OPEN_COMMAND_PALETTE from content script
   if (message.action === 'OPEN_COMMAND_PALETTE') {
     (async () => {
@@ -823,6 +841,92 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       type: 'TAB_UPDATED',
       payload: { tabId, url: tab.url },
     }).catch(() => {})
+  }
+})
+
+// ============================================
+// GLOBAL COMMAND HANDLER (Alt+P, Alt+S)
+// ============================================
+
+// Helper to send focus message to side panel after it opens
+function sendFocusMessageToPanel(tabId: number): void {
+  let retries = 5
+  const trySend = () => {
+    const port = panelPorts.get(tabId)
+    if (port) {
+      port.postMessage({ type: 'OPEN_COMMAND_PALETTE' })
+    } else if (retries > 0) {
+      retries--
+      setTimeout(trySend, 100)
+    } else {
+      // Fallback: broadcast message
+      chrome.runtime.sendMessage({ type: 'OPEN_COMMAND_PALETTE' }).catch(() => {})
+    }
+  }
+  setTimeout(trySend, 150)
+}
+
+// IMPORTANT: Do NOT use async here - it breaks user gesture for sidePanel.open()
+// The tab parameter is passed directly by Chrome, no need for chrome.tabs.query()
+chrome.commands.onCommand.addListener((command, tab) => {
+  console.log('PP: Command received:', command, 'tab:', tab?.id, tab?.url)
+  
+  // Validate tab context
+  if (!tab?.id || !tab?.windowId) {
+    console.error('PP: No tab context for command')
+    return
+  }
+  
+  const tabId = tab.id
+  const windowId = tab.windowId
+  const isProcore = tab.url?.includes('procore.com') ?? false
+  
+  // Alt+P: Open Command Palette (overlay on Procore, side panel elsewhere)
+  if (command === 'toggle-palette') {
+    console.log('PP: toggle-palette, isProcore:', isProcore)
+    
+    if (isProcore) {
+      // On Procore: Toggle the overlay via content script
+      chrome.tabs.sendMessage(tabId, { action: 'TOGGLE_OVERLAY' })
+        .then(() => {
+          console.log('PP: TOGGLE_OVERLAY sent successfully')
+        })
+        .catch((err) => {
+          // Content script not ready, fall back to side panel
+          console.log('PP: Content script not ready, opening side panel. Error:', err)
+          chrome.sidePanel.open({ windowId })
+            .then(() => sendFocusMessageToPanel(tabId))
+            .catch((e) => console.error('PP: Failed to open side panel:', e))
+        })
+    } else {
+      // Not on Procore: Open side panel SYNCHRONOUSLY (preserves user gesture)
+      console.log('PP: Not on Procore, opening side panel')
+      chrome.sidePanel.open({ windowId })
+        .then(() => {
+          console.log('PP: Side panel opened, sending focus message')
+          sendFocusMessageToPanel(tabId)
+        })
+        .catch((err) => console.error('PP: Failed to open side panel:', err))
+    }
+  }
+  
+  // Alt+S: Toggle Side Panel (global, works on any page)
+  if (command === 'toggle-sidepanel') {
+    // isPanelOpen() is SYNCHRONOUS - doesn't break user gesture
+    const isOpen = isPanelOpen(tabId)
+    console.log('PP: toggle-sidepanel, isOpen:', isOpen)
+    
+    if (isOpen) {
+      // Close via port message (no user gesture needed for this)
+      closeSidePanel(tabId)
+        .then((success) => console.log('PP: Side panel close result:', success))
+        .catch((err) => console.error('PP: Failed to close side panel:', err))
+    } else {
+      // Open synchronously (preserves user gesture)
+      chrome.sidePanel.open({ windowId })
+        .then(() => console.log('PP: Side panel opened via Alt+S'))
+        .catch((err) => console.error('PP: Failed to open side panel:', err))
+    }
   }
 })
 

@@ -219,26 +219,9 @@ function makeDraggable(element: HTMLElement): void {
 // ============================================
 
 function setupKeyboardShortcut(): void {
-  document.addEventListener('keydown', (e) => {
-    // Don't trigger in input fields
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-      return
-    }
-    
-    // Alt+S to toggle side panel
-    if (e.altKey && e.code === 'KeyS') {
-      e.preventDefault()
-      toggleSidePanel()
-    }
-    
-    // Alt+P to toggle command palette overlay
-    if (e.altKey && e.code === 'KeyP') {
-      e.preventDefault()
-      // Dispatch custom event for overlay to listen
-      console.log('PP: Alt+P pressed, dispatching pp-toggle-overlay event')
-      window.dispatchEvent(new CustomEvent('pp-toggle-overlay', { bubbles: true, cancelable: true }))
-    }
-  })
+  // Note: Alt+S and Alt+P are now handled globally via chrome.commands API
+  // See manifest.json "commands" and service-worker.ts onCommand listener
+  // This function is kept for potential future local shortcuts
 }
 
 // ============================================

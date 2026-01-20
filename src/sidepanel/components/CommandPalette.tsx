@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
 import { useCommandPalette } from '../hooks/useCommandPalette'
 import { getDisciplineColor } from '../utils/discipline'
-import type { CommandPaletteResult } from '@/types'
+import type { CommandPaletteResult, Project } from '@/types'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
 
 interface CommandPaletteProps {
@@ -24,6 +24,15 @@ interface CommandPaletteProps {
    * Used by overlay to hide the container.
    */
   onClose?: () => void
+  /**
+   * List of available projects for the project switcher.
+   * When provided with onProjectChange, shows a dropdown in the header.
+   */
+  availableProjects?: Project[]
+  /**
+   * Callback when user switches project in the palette.
+   */
+  onProjectChange?: (projectId: string) => void
 }
 
 export function CommandPalette({ 
@@ -32,6 +41,8 @@ export function CommandPalette({
   usePortal = true,
   initialIsOpen = false,
   onClose,
+  availableProjects = [],
+  onProjectChange,
 }: CommandPaletteProps) {
   const {
     isOpen,
@@ -147,6 +158,30 @@ export function CommandPalette({
       onKeyDown={onContainerKeyDown as any}
     >
       <div className="w-full max-w-2xl max-h-[60vh] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
+        {/* Project Switcher (shown when multiple projects available) */}
+        {availableProjects.length > 1 && onProjectChange && (
+          <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Project</span>
+            <select
+              value={projectId || ''}
+              onChange={(e) => {
+                const newProjectId = e.currentTarget.value
+                if (newProjectId) {
+                  onProjectChange(newProjectId)
+                  setSearchQuery('')
+                }
+              }}
+              className="text-xs bg-transparent border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[200px] truncate"
+            >
+              {availableProjects.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name || `Project ${p.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Input */}
         <input
           ref={inputRef}

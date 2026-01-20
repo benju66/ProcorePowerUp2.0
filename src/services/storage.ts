@@ -203,6 +203,24 @@ export const StorageService = {
     await del(commitmentKey(projectId), commitmentsStore)
   },
 
+  async deleteProject(projectId: string): Promise<void> {
+    if (!projectId) return
+    
+    // Delete all project data from various stores
+    await del(drawingKey(projectId), drawingsStore)
+    await del(disciplineMapKey(projectId), drawingsStore)
+    await del(rfiKey(projectId), rfisStore)
+    await del(commitmentKey(projectId), commitmentsStore)
+    
+    // Delete project preferences
+    await del(statusColorsKey(projectId), preferencesStore)
+    await del(recentsKey(projectId), preferencesStore)
+    await del(favoritesKey(projectId), preferencesStore)
+    
+    // Delete the project entry itself
+    await del(projectId, projectsStore)
+  },
+
   async clearAllData(): Promise<void> {
     await clear(drawingsStore)
     await clear(rfisStore)

@@ -70,9 +70,11 @@ export function App() {
     async function init() {
       setIsLoading(true)
       
-      // Load saved projects
+      // Load saved projects (sorted by lastAccessed DESC)
       const savedProjects = await StorageService.getAllProjects()
       setProjects(savedProjects)
+
+      let detectedProjectId: string | null = null
 
       // Try to get current tab info
       try {
@@ -84,7 +86,7 @@ export function App() {
           const ids = extractIdsFromUrl(response.url)
           
           if (ids.projectId) {
-            setCurrentProjectId(ids.projectId)
+            detectedProjectId = ids.projectId
             
             // Update project access with captured IDs
             // Only include IDs that are actually present (don't overwrite with undefined)
@@ -99,6 +101,12 @@ export function App() {
         // Not in a tab context (e.g., popped out window)
       }
 
+      // Smart Default: If no project detected from URL, use last accessed project
+      if (!detectedProjectId && savedProjects.length > 0) {
+        detectedProjectId = savedProjects[0].id // Already sorted by lastAccessed DESC
+      }
+
+      setCurrentProjectId(detectedProjectId)
       setIsLoading(false)
     }
 
@@ -106,9 +114,23 @@ export function App() {
   }, [])
 
   // Establish port connection to background for reliable lifecycle tracking
-  // When this port disconnects (panel closes), background will notify content script
+  // This single port handles: registration, close commands, and focus commands
   useEffect(() => {
     const port = chrome.runtime.connect({ name: 'sidepanel' })
+    
+    // Listen for messages from background via this port
+    port.onMessage.addListener((message: { type: string }) => {
+      console.log('PP: Port message received:', message.type)
+      
+      if (message.type === 'OPEN_COMMAND_PALETTE') {
+        window.dispatchEvent(new CustomEvent('open-command-palette'))
+      }
+      
+      if (message.type === 'CLOSE_SIDEPANEL') {
+        console.log('PP: Closing side panel via port message')
+        window.close()
+      }
+    })
     
     // Get the associated tab ID and send it to background
     chrome.runtime.sendMessage({ action: 'GET_ACTIVE_TAB' })
@@ -122,8 +144,7 @@ export function App() {
         port.postMessage({ type: 'PANEL_OPENED' })
       })
     
-    // Port automatically disconnects when panel closes - no cleanup needed
-    // Chrome handles this reliably, unlike pagehide/beforeunload
+    // Port automatically disconnects when panel closes
     return () => {
       port.disconnect()
     }
@@ -183,24 +204,6 @@ export function App() {
     chrome.runtime.onMessage.addListener(handleMessage)
     return () => chrome.runtime.onMessage.removeListener(handleMessage)
   }, [])
-  
-  // Also listen for port messages
-  useEffect(() => {
-    const port = chrome.runtime.connect({ name: 'sidepanel' })
-    
-    port.onMessage.addListener((message: { type: string }) => {
-      if (message.type === 'OPEN_COMMAND_PALETTE') {
-        window.dispatchEvent(new CustomEvent('open-command-palette'))
-      }
-      // Handle close request from background via port
-      if (message.type === 'CLOSE_SIDEPANEL') {
-        console.log('PP: Closing side panel via port message')
-        window.close()
-      }
-    })
-    
-    return () => port.disconnect()
-  }, [])
 
   const handlePopOut = useCallback(async () => {
     try {
@@ -214,6 +217,22 @@ export function App() {
     setCurrentProjectId(projectId)
     StorageService.updateProjectAccess(projectId, {})
   }, [])
+
+  const refreshProjects = useCallback(async () => {
+    const updatedProjects = await StorageService.getAllProjects()
+    setProjects(updatedProjects)
+  }, [])
+
+  const handleProjectDeleted = useCallback(async (deletedProjectId: string) => {
+    await StorageService.deleteProject(deletedProjectId)
+    const updatedProjects = await StorageService.getAllProjects()
+    setProjects(updatedProjects)
+    
+    // If deleted project was current, select next available or clear
+    if (currentProjectId === deletedProjectId) {
+      setCurrentProjectId(updatedProjects.length > 0 ? updatedProjects[0].id : null)
+    }
+  }, [currentProjectId])
 
   const renderActiveTab = () => {
     if (!currentProjectId) {
@@ -255,6 +274,8 @@ export function App() {
         <Header 
           onPopOut={handlePopOut} 
           currentProjectId={currentProjectId}
+          projects={projects}
+          onProjectDeleted={handleProjectDeleted}
         />
         
         {/* Global Project Selector (shown when not on Procore tab) */}
@@ -263,6 +284,8 @@ export function App() {
             projects={projects}
             currentProjectId={currentProjectId}
             onProjectChange={handleProjectChange}
+            onProjectUpdated={refreshProjects}
+            onProjectDeleted={handleProjectDeleted}
           />
         )}
 
@@ -282,7 +305,11 @@ export function App() {
           {renderActiveTab()}
         </main>
 
-        <CommandPalette projectId={currentProjectId} />
+        <CommandPalette 
+          projectId={currentProjectId}
+          availableProjects={projects}
+          onProjectChange={handleProjectChange}
+        />
       </div>
     </FavoritesProvider>
   )

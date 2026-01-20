@@ -305,6 +305,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       break
     }
 
+    case 'TOGGLE_OVERLAY': {
+      // Dispatch event for overlay.tsx to handle
+      console.log('PP Content: TOGGLE_OVERLAY received, dispatching event')
+      window.dispatchEvent(new CustomEvent('pp-toggle-overlay'))
+      sendResponse({ success: true })
+      break
+    }
+
     default:
       sendResponse({ error: 'Unknown action' })
   }

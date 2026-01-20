@@ -6,10 +6,10 @@
  */
 
 import { render } from 'preact'
-import { useState, useEffect } from 'preact/hooks'
+import { useState, useEffect, useCallback } from 'preact/hooks'
 import { CommandPalette } from '../sidepanel/components/CommandPalette'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
-import type { Drawing, DisciplineMap, RecentsList } from '@/types'
+import type { Drawing, DisciplineMap, RecentsList, Project } from '@/types'
 
 // Import CSS as inline string
 // @ts-ignore - Vite handles ?inline imports
@@ -87,15 +87,22 @@ class OverlayDataProvider implements CommandPaletteDataProvider {
 function OverlayApp({ onVisibilityChange }: { onVisibilityChange: (visible: boolean) => void }) {
   console.log('PP Overlay: OverlayApp component rendering')
   const [isVisible, setIsVisible] = useState(false)
-  const [projectId, setProjectId] = useState<string | null>(null)
+  const [urlProjectId, setUrlProjectId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([])
   const dataProvider = new OverlayDataProvider()
+
+  // The active project is the user's selection, or fallback to URL-detected project
+  const projectId = selectedProjectId || urlProjectId
 
   // Extract project ID from URL
   useEffect(() => {
     console.log('PP Overlay: Setting up project ID extraction')
     const updateProjectId = () => {
       const id = extractProjectIdFromUrl()
-      setProjectId(id)
+      setUrlProjectId(id)
+      // Reset selection when URL changes (navigating to different project)
+      setSelectedProjectId(null)
     }
     
     // Initial extraction
@@ -112,6 +119,29 @@ function OverlayApp({ onVisibilityChange }: { onVisibilityChange: (visible: bool
       observer.disconnect()
       window.removeEventListener('popstate', updateProjectId)
     }
+  }, [])
+
+  // Fetch available projects when overlay becomes visible
+  useEffect(() => {
+    if (!isVisible) return
+    
+    async function fetchProjects() {
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'GET_ALL_PROJECTS' })
+        if (response?.success) {
+          setAvailableProjects(response.projects || [])
+        }
+      } catch (error) {
+        console.error('PP Overlay: Failed to fetch projects:', error)
+      }
+    }
+    
+    fetchProjects()
+  }, [isVisible])
+
+  // Handle project change from CommandPalette dropdown
+  const handleProjectChange = useCallback((newProjectId: string) => {
+    setSelectedProjectId(newProjectId)
   }, [])
 
   // Listen for toggle event from Shadow DOM
@@ -176,6 +206,8 @@ function OverlayApp({ onVisibilityChange }: { onVisibilityChange: (visible: bool
       usePortal={false}
       initialIsOpen={true}
       onClose={() => setIsVisible(false)}
+      availableProjects={availableProjects}
+      onProjectChange={handleProjectChange}
     />
   )
 }

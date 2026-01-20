@@ -13,15 +13,19 @@ import { useFavorites } from '../hooks/useFavorites'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
 import { FolderInput } from './FolderInput'
+import { CollapsibleSection } from './CollapsibleSection'
+import type { Project } from '@/types'
 
 interface SettingsProps {
   isOpen: boolean
   onClose: () => void
   buttonRef?: { current: HTMLElement | null }
   currentProjectId?: string | null
+  projects?: Project[]
+  onProjectDeleted?: (projectId: string) => Promise<void>
 }
 
-export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: SettingsProps) {
+export function Settings({ isOpen, onClose, buttonRef, currentProjectId, projects = [], onProjectDeleted }: SettingsProps) {
   const { theme, setTheme } = useTheme()
   const { showRFIsTab, showCostTab, setShowRFIsTab, setShowCostTab } = useTabVisibility()
   const { animationLevel, setAnimationLevel, triggerMood } = useMascot()
@@ -44,6 +48,25 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
     percent: 0,
     status: null
   })
+
+  // Delete project state
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+
+  const handleDeleteProject = async (projectId: string, projectName: string) => {
+    const displayName = projectName || `Project ${projectId}`
+    if (!confirm(`Delete "${displayName}"? All cached data will be removed.`)) {
+      return
+    }
+    
+    setDeletingProjectId(projectId)
+    try {
+      await onProjectDeleted?.(projectId)
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+    } finally {
+      setDeletingProjectId(null)
+    }
+  }
 
   // Load preferences
   useEffect(() => {
@@ -293,155 +316,177 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
   return (
     <div
       ref={dropdownRef}
-      className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[220px] max-h-[calc(100vh-60px)] overflow-y-auto p-3"
+      className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[260px] max-h-[calc(100vh-60px)] overflow-y-auto"
       role="menu"
       aria-label="Settings"
     >
-      <div className="space-y-3">
-        {/* Theme Section */}
-        <div>
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-            Theme
-          </div>
-          <div className="space-y-1">
-            {(['light', 'dark', 'auto'] as const).map((option) => (
-              <label
-                key={option}
-                className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
-                role="menuitemradio"
-                aria-checked={theme === option}
+      {/* Projects Section - Always visible, expanded by default */}
+      {projects.length > 0 && (
+        <CollapsibleSection
+          title="Projects"
+          icon="📁"
+          preferenceKey={PREFERENCE_KEYS.settingsProjectsExpanded}
+          defaultExpanded={true}
+          badge={projects.length}
+        >
+          <div className="px-2 space-y-1 max-h-40 overflow-y-auto">
+            {projects.map(project => (
+              <div
+                key={project.id}
+                className={`flex items-center justify-between px-2 py-1.5 rounded text-sm group ${
+                  project.id === currentProjectId 
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
               >
-                <input
-                  type="radio"
-                  name="theme"
-                  value={option}
-                  checked={theme === option}
-                  onChange={() => handleThemeChange(option)}
-                  className="w-4 h-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
-                />
-                <span className="capitalize">{option === 'auto' ? 'Auto (System)' : option}</span>
-              </label>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate font-medium">
+                    {project.name || `Project ${project.id}`}
+                  </div>
+                  <div className="text-xs text-gray-400 dark:text-gray-500">
+                    {new Date(project.lastAccessed).toLocaleDateString()}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDeleteProject(project.id, project.name || '')}
+                  disabled={deletingProjectId === project.id}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-opacity disabled:opacity-50"
+                  title="Delete project"
+                >
+                  {deletingProjectId === project.id ? (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
+      )}
 
-        {/* Mascot Section */}
-        <div>
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-            Mascot
-          </div>
-          <div className="space-y-1">
-            {(['off', 'subtle', 'normal'] as const).map((option) => (
-              <label
-                key={option}
-                className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
-                role="menuitemradio"
-                aria-checked={animationLevel === option}
-              >
-                <input
-                  type="radio"
-                  name="animationLevel"
-                  value={option}
-                  checked={animationLevel === option}
-                  onChange={() => setAnimationLevel(option)}
-                  className="w-4 h-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
-                />
-                <span>
-                  {option === 'off' && 'Off'}
-                  {option === 'subtle' && 'Subtle'}
-                  {option === 'normal' && 'Normal'}
-                </span>
-              </label>
-            ))}
-          </div>
-          <div className="px-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Controls the ⚡ mascot animations
-          </div>
-          <button
-            onClick={() => triggerMood('happy', 1000)}
-            className="mt-2 px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
-          >
-            Test Animation
-          </button>
-        </div>
-
-        {/* Data Sync Section */}
-        {currentProjectId && (
+      {/* Appearance Section */}
+      <CollapsibleSection
+        title="Appearance"
+        icon="🎨"
+        preferenceKey={PREFERENCE_KEYS.settingsAppearanceExpanded}
+        defaultExpanded={false}
+      >
+        <div className="px-2 space-y-3">
+          {/* Theme */}
           <div>
-            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              Data Sync
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 px-2">Theme</div>
+            <div className="space-y-1">
+              {(['light', 'dark', 'auto'] as const).map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-2 px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+                >
+                  <input
+                    type="radio"
+                    name="theme"
+                    checked={theme === option}
+                    onChange={() => handleThemeChange(option)}
+                    className="w-3 h-3 text-blue-600"
+                  />
+                  <span className="capitalize">{option === 'auto' ? 'Auto' : option}</span>
+                </label>
+              ))}
             </div>
-            <div className="space-y-2">
+          </div>
+          
+          {/* Mascot */}
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 px-2">Mascot</div>
+            <div className="space-y-1">
+              {(['off', 'subtle', 'normal'] as const).map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-2 px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+                >
+                  <input
+                    type="radio"
+                    name="animationLevel"
+                    checked={animationLevel === option}
+                    onChange={() => setAnimationLevel(option)}
+                    className="w-3 h-3 text-blue-600"
+                  />
+                  <span className="capitalize">{option}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={() => triggerMood('happy', 1000)}
+              className="mt-2 px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
+            >
+              Test Animation
+            </button>
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      {/* Data Sync Section */}
+      {currentProjectId && (
+        <CollapsibleSection
+          title="Data Sync"
+          icon="🔄"
+          preferenceKey={PREFERENCE_KEYS.settingsDataSyncExpanded}
+          defaultExpanded={false}
+        >
+          <div className="px-2 space-y-2">
+            <button
+              onClick={() => handleScan('drawings')}
+              disabled={scanState.isScanning}
+              className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+            >
+              {scanState.isScanning && scanState.type === 'drawings' ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  <span>{scanState.percent}%</span>
+                </>
+              ) : (
+                <span>Scan Drawings</span>
+              )}
+            </button>
+            
+            {showRFIsTab && (
               <button
-                onClick={() => handleScan('drawings')}
+                onClick={() => handleScan('rfis')}
                 disabled={scanState.isScanning}
                 className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                role="menuitem"
               >
-                {scanState.isScanning && scanState.type === 'drawings' ? (
+                {scanState.isScanning && scanState.type === 'rfis' ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                     <span>{scanState.percent}%</span>
                   </>
                 ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>Scan Drawings</span>
-                  </>
+                  <span>Scan RFIs</span>
                 )}
               </button>
-              
-              {showRFIsTab && (
-                <button
-                  onClick={() => handleScan('rfis')}
-                  disabled={scanState.isScanning}
-                  className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                  role="menuitem"
-                >
-                  {scanState.isScanning && scanState.type === 'rfis' ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      <span>{scanState.percent}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      <span>Scan RFIs</span>
-                    </>
-                  )}
-                </button>
-              )}
-              
-              {showCostTab && (
-                <button
-                  onClick={() => handleScan('commitments')}
-                  disabled={scanState.isScanning}
-                  className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                  role="menuitem"
-                >
-                  {scanState.isScanning && scanState.type === 'commitments' ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      <span>{scanState.percent}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      <span>Scan Commitments</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
+            )}
+            
+            {showCostTab && (
+              <button
+                onClick={() => handleScan('commitments')}
+                disabled={scanState.isScanning}
+                className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+              >
+                {scanState.isScanning && scanState.type === 'commitments' ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span>{scanState.percent}%</span>
+                  </>
+                ) : (
+                  <span>Scan Commitments</span>
+                )}
+              </button>
+            )}
             
             {scanState.status && (
-              <div className={`mt-2 px-2 py-1.5 text-xs rounded ${
+              <div className={`px-2 py-1.5 text-xs rounded ${
                 scanState.status.startsWith('Error') 
                   ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400' 
                   : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
@@ -450,88 +495,71 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
               </div>
             )}
           </div>
-        )}
+        </CollapsibleSection>
+      )}
 
-        {/* Preferences Section */}
-        <div>
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-            Preferences
-          </div>
-          <label 
-            className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
-            role="menuitemcheckbox"
-            aria-checked={openInBackground}
-          >
-            <span>Open in Background Tab</span>
+      {/* Preferences Section */}
+      <CollapsibleSection
+        title="Preferences"
+        icon="⚙️"
+        preferenceKey={PREFERENCE_KEYS.settingsPreferencesExpanded}
+        defaultExpanded={false}
+      >
+        <div className="px-2 space-y-2">
+          <label className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+            <span>Open in Background</span>
             <input
               type="checkbox"
               checked={openInBackground}
               onChange={handleOpenInBackgroundChange}
-              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
+              className="w-4 h-4 text-blue-600 rounded"
             />
           </label>
-          <div className="px-2 mt-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
-            When enabled, links open without switching tabs
-          </div>
           
-          <label 
-            className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
-            role="menuitemcheckbox"
-            aria-checked={showFloatingButton}
-          >
-            <span>Show Floating Button</span>
+          <label className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+            <span>Floating Button</span>
             <input
               type="checkbox"
               checked={showFloatingButton}
               onChange={handleShowFloatingButtonChange}
-              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
+              className="w-4 h-4 text-blue-600 rounded"
             />
           </label>
-          <div className="px-2 mt-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
-            Toggle the floating button on Procore pages
-          </div>
           
-          {/* Tab Visibility Toggles */}
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-            Tab Visibility
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 px-2">Tab Visibility</div>
+            <label className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+              <span>Show RFIs Tab</span>
+              <input
+                type="checkbox"
+                checked={showRFIsTab}
+                onChange={(e) => setShowRFIsTab((e.target as HTMLInputElement).checked)}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+            </label>
+            <label className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+              <span>Show Cost Tab</span>
+              <input
+                type="checkbox"
+                checked={showCostTab}
+                onChange={(e) => setShowCostTab((e.target as HTMLInputElement).checked)}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+            </label>
           </div>
-          <label 
-            className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
-            role="menuitemcheckbox"
-            aria-checked={showRFIsTab}
-          >
-            <span>Show RFIs Tab</span>
-            <input
-              type="checkbox"
-              checked={showRFIsTab}
-              onChange={(e) => setShowRFIsTab((e.target as HTMLInputElement).checked)}
-              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
-            />
-          </label>
-          <label 
-            className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
-            role="menuitemcheckbox"
-            aria-checked={showCostTab}
-          >
-            <span>Show Cost Tab</span>
-            <input
-              type="checkbox"
-              checked={showCostTab}
-              onChange={(e) => setShowCostTab((e.target as HTMLInputElement).checked)}
-              className="w-4 h-4 text-blue-600 dark:text-blue-400 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
-            />
-          </label>
         </div>
+      </CollapsibleSection>
 
-        {/* Favorites Section */}
-        {currentProjectId && (
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-            <div className="px-3 mb-2">
-              <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                Favorites
-              </h3>
-            </div>
-            
+      {/* Favorites Section */}
+      {currentProjectId && (
+        <CollapsibleSection
+          title="Favorites"
+          icon="⭐"
+          preferenceKey={PREFERENCE_KEYS.settingsFavoritesExpanded}
+          defaultExpanded={false}
+          badge={folders.length}
+        >
+          <div className="px-2">
             {showFolderInput ? (
               <FolderInput
                 onSubmit={handleFolderSubmit}
@@ -540,7 +568,7 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
             ) : (
               <button
                 onClick={() => setShowFolderInput(true)}
-                className="w-full px-3 py-2 text-left text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                className="w-full px-2 py-1.5 text-left text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-2"
               >
                 <span>+</span>
                 <span>New Folder</span>
@@ -548,7 +576,7 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
             )}
 
             {!favoritesLoading && folders.length > 0 && (
-              <div className="mt-2 max-h-48 overflow-y-auto">
+              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
                 {folders.map(folder => (
                   <div
                     key={folder.id}
@@ -567,20 +595,18 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
                         await addDrawingToFolder(folder.id, drawingNum)
                       }
                     }}
-                    className={`px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between group transition-colors ${
-                      dragOverFolderId === folder.id ? 'bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 dark:border-blue-400' : ''
+                    className={`px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between group transition-colors ${
+                      dragOverFolderId === folder.id ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : ''
                     }`}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-yellow-500">📁</span>
+                      <span className="text-yellow-500 text-sm">📁</span>
                       <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{folder.name}</span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        ({folder.drawings.length})
-                      </span>
+                      <span className="text-xs text-gray-400">({folder.drawings.length})</span>
                     </div>
                     <button
                       onClick={() => handleRemoveFolder(folder.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-xs px-2"
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1"
                       title="Delete folder"
                     >
                       ×
@@ -591,13 +617,13 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId }: Setti
             )}
 
             {!favoritesLoading && folders.length === 0 && !showFolderInput && (
-              <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
-                No folders yet. Create one to organize your favorite drawings.
+              <div className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
+                No folders yet.
               </div>
             )}
           </div>
-        )}
-      </div>
+        </CollapsibleSection>
+      )}
     </div>
   )
 }

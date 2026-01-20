@@ -37,4 +37,10 @@ export const PREFERENCE_KEYS = {
   recentsExpanded: 'recentsExpanded',
   favoritesExpanded: 'favoritesExpanded',
   animationLevel: 'animationLevel',
+  // Settings collapsible sections
+  settingsAppearanceExpanded: 'settingsAppearanceExpanded',
+  settingsProjectsExpanded: 'settingsProjectsExpanded',
+  settingsDataSyncExpanded: 'settingsDataSyncExpanded',
+  settingsPreferencesExpanded: 'settingsPreferencesExpanded',
+  settingsFavoritesExpanded: 'settingsFavoritesExpanded',
 } as const

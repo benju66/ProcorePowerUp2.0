@@ -1,13 +1,16 @@
 import { useState, useRef } from 'preact/hooks'
 import { Settings } from './Settings'
 import { useMascot } from '../contexts/MascotContext'
+import type { Project } from '@/types'
 
 interface HeaderProps {
   onPopOut: () => void
   currentProjectId?: string | null
+  projects?: Project[]
+  onProjectDeleted?: (projectId: string) => Promise<void>
 }
 
-export function Header({ onPopOut, currentProjectId }: HeaderProps) {
+export function Header({ onPopOut, currentProjectId, projects = [], onProjectDeleted }: HeaderProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   
@@ -100,6 +103,8 @@ export function Header({ onPopOut, currentProjectId }: HeaderProps) {
         onClose={() => setSettingsOpen(false)}
         buttonRef={settingsButtonRef}
         currentProjectId={currentProjectId}
+        projects={projects}
+        onProjectDeleted={onProjectDeleted}
       />
     </header>
   )

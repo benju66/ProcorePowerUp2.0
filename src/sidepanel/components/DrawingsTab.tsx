@@ -19,6 +19,21 @@ import {
 import { useDragAutoScroll } from '../hooks/useDragAutoScroll'
 import { getDisciplineColor } from '../utils/discipline'
 
+// Fuzzy match helper for discipline prefix search
+function fuzzyMatch(text: string, pattern: string): boolean {
+  if (!pattern) return true
+  if (!text) return false
+  const textLower = text.toLowerCase()
+  const patternLower = pattern.toLowerCase()
+  let patternIdx = 0
+  for (let i = 0; i < textLower.length && patternIdx < patternLower.length; i++) {
+    if (textLower[i] === patternLower[patternIdx]) {
+      patternIdx++
+    }
+  }
+  return patternIdx === patternLower.length
+}
+
 interface DrawingsTabProps {
   projectId: string
   dataVersion?: number
@@ -220,14 +235,69 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   }, [projectId, isScanning])
 
   const filteredDrawings = useMemo(() => {
-    if (!searchQuery.trim()) return drawings
-    const query = searchQuery.toLowerCase()
-    return drawings.filter(d => 
-      d.num?.toLowerCase().includes(query) ||
-      d.title?.toLowerCase().includes(query) ||
-      d.discipline_name?.toLowerCase().includes(query)
-    )
-  }, [drawings, searchQuery])
+    let query = searchQuery.trim().toLowerCase()
+    
+    // Empty search returns all
+    if (!query) return drawings
+
+    let filterType: 'all' | 'favorites' | 'discipline' = 'all'
+    let filterTerm = query
+
+    // Parse special prefixes
+    if (query.startsWith('*')) {
+      filterType = 'favorites'
+      filterTerm = query.substring(1).trim()
+    } else if (query.startsWith('@')) {
+      filterType = 'discipline'
+      filterTerm = query.substring(1).trim()
+    }
+
+    // Get favorites set for filtering
+    const favoritesSet = getAllFavoriteDrawings()
+
+    // Helper to get discipline name for a drawing
+    const getDisciplineName = (d: Drawing): string => {
+      if (d.discipline && typeof d.discipline === 'object') {
+        const disc = d.discipline as { id?: number; name?: string }
+        if (disc.id && disciplineMap[disc.id]) {
+          return disciplineMap[disc.id].name
+        }
+        return disc.name || 'General'
+      } else if (typeof d.discipline === 'number' && disciplineMap[d.discipline]) {
+        return disciplineMap[d.discipline].name
+      }
+      return d.discipline_name || 'General'
+    }
+
+    return drawings.filter(d => {
+      // Favorites filter: must be in favorites
+      if (filterType === 'favorites') {
+        if (!favoritesSet.has(d.num)) return false
+        // If there's additional text after *, also match on it
+        if (filterTerm) {
+          return (
+            d.num?.toLowerCase().includes(filterTerm) ||
+            d.title?.toLowerCase().includes(filterTerm) ||
+            getDisciplineName(d).toLowerCase().includes(filterTerm)
+          )
+        }
+        return true
+      }
+
+      // Discipline filter: fuzzy match on discipline name
+      if (filterType === 'discipline') {
+        const discName = getDisciplineName(d)
+        return fuzzyMatch(discName, filterTerm)
+      }
+
+      // Standard search: match on num, title, or discipline name
+      return (
+        d.num?.toLowerCase().includes(filterTerm) ||
+        d.title?.toLowerCase().includes(filterTerm) ||
+        getDisciplineName(d).toLowerCase().includes(filterTerm)
+      )
+    })
+  }, [drawings, searchQuery, disciplineMap, getAllFavoriteDrawings])
 
   // Helper to check if a drawing matches the search query
   const drawingMatchesSearch = useCallback((drawing: Drawing) => {
@@ -349,6 +419,15 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
     setSearchQuery('') // Clear search when filtering
   }, [])
 
+  // Handle search query changes - clear discipline filter when using @ prefix
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query)
+    // Clear click-based discipline filter when using @ prefix search
+    if (query.startsWith('@') && activeDisciplineFilter) {
+      setActiveDisciplineFilter(null)
+    }
+  }, [activeDisciplineFilter])
+
   const toggleExpandAll = useCallback(() => {
     if (allExpanded) {
       setExpandedDisciplines(new Set())
@@ -404,8 +483,8 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
           <div className="flex-1">
             <SearchInput
               value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder={activeDisciplineFilter ? `Filtered: ${activeDisciplineFilter}` : 'Filter drawings...'}
+              onChange={handleSearchChange}
+              placeholder={activeDisciplineFilter ? `Filtered: ${activeDisciplineFilter}` : 'Search (* fav, @ disc)...'}
               onArrowDown={() => {
                 if (scrollContainerRef.current) {
                   focusFirst(scrollContainerRef.current)
