@@ -19,6 +19,36 @@ function formatCurrency(amount: number | undefined): string {
   }).format(amount)
 }
 
+/**
+ * Determine the URL path type for a commitment based on its type field or number prefix.
+ * Procore uses different URL paths for different commitment types:
+ * - Purchase Orders: /purchase_order_contracts/
+ * - Work Orders/Subcontracts: /work_order_contracts/
+ */
+function getCommitmentUrlType(commitment: Commitment): string {
+  const type = commitment.type?.toLowerCase() || ''
+  const number = commitment.number?.toUpperCase() || ''
+  
+  // Check type field first (API may return values like 'PurchaseOrderContract', 'WorkOrderContract')
+  if (type.includes('purchase') || type.includes('purchaseorder')) {
+    return 'purchase_order_contracts'
+  }
+  if (type.includes('work') || type.includes('subcontract') || type.includes('workorder')) {
+    return 'work_order_contracts'
+  }
+  
+  // Fallback: check commitment number prefix
+  if (number.startsWith('PO-') || number.startsWith('PO ')) {
+    return 'purchase_order_contracts'
+  }
+  if (number.startsWith('WO-') || number.startsWith('SC-') || number.startsWith('SUB-')) {
+    return 'work_order_contracts'
+  }
+  
+  // Default to purchase order contracts
+  return 'purchase_order_contracts'
+}
+
 export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
   const [commitments, setCommitments] = useState<Commitment[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -96,13 +126,17 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
     })
   }, [commitments, searchQuery])
 
-  const totals = useMemo(() => {
-    return commitments.reduce((acc, c) => ({
-      approved: acc.approved + (c.approved_amount ?? 0),
-      pending: acc.pending + (c.pending_amount ?? 0),
-      draft: acc.draft + (c.draft_amount ?? 0),
-    }), { approved: 0, pending: 0, draft: 0 })
-  }, [commitments])
+  // TODO: Future enhancement - Calculate and display commitment totals
+  // Currently disabled because the Procore API data captured via wiretap
+  // doesn't reliably include the approved_amount, pending_amount, and draft_amount fields.
+  // To re-enable, uncomment the totals calculation and the corresponding JSX section below.
+  // const totals = useMemo(() => {
+  //   return commitments.reduce((acc, c) => ({
+  //     approved: acc.approved + (c.approved_amount ?? 0),
+  //     pending: acc.pending + (c.pending_amount ?? 0),
+  //     draft: acc.draft + (c.draft_amount ?? 0),
+  //   }), { approved: 0, pending: 0, draft: 0 })
+  // }, [commitments])
 
 
   const handleCommitmentClick = useCallback(async (commitment: Commitment) => {
@@ -111,7 +145,9 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
         PREFERENCE_KEYS.openInBackground,
         false
       )
-      const url = `https://app.procore.com/${projectId}/project/contracts/commitments/${commitment.id}`
+      // Use correct Procore URL format with commitment type
+      const commitmentType = getCommitmentUrlType(commitment)
+      const url = `https://app.procore.com/${projectId}/project/contracts/commitments/${commitmentType}/${commitment.id}`
       chrome.runtime.sendMessage({ 
         action: 'OPEN_TAB', 
         url, 
@@ -186,6 +222,8 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
         </div>
       )}
       
+      {/* TODO: Future enhancement - Commitment totals display
+          Currently disabled - see comment above for details.
       {commitments.length > 0 && (
         <div className="grid grid-cols-3 gap-2 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="text-center p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
@@ -202,6 +240,7 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
           </div>
         </div>
       )}
+      */}
 
       <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div className="flex gap-2 mb-2">
