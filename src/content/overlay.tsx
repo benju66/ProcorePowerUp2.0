@@ -9,7 +9,7 @@ import { render } from 'preact'
 import { useState, useEffect, useCallback } from 'preact/hooks'
 import { CommandPalette } from '../sidepanel/components/CommandPalette'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
-import type { Drawing, DisciplineMap, RecentsList, Project } from '@/types'
+import type { Drawing, DisciplineMap, RecentsList, Project, RFI } from '@/types'
 
 // Import CSS as inline string
 // @ts-ignore - Vite handles ?inline imports
@@ -77,6 +77,19 @@ class OverlayDataProvider implements CommandPaletteDataProvider {
     }
     
     return response.recents || []
+  }
+
+  async getRFIs(projectId: string): Promise<RFI[]> {
+    const response = await chrome.runtime.sendMessage({
+      action: 'GET_PROJECT_DATA',
+      projectId,
+    })
+    
+    if (!response?.success) {
+      throw new Error(response?.error || 'Failed to get RFIs')
+    }
+    
+    return response.rfis || []
   }
 }
 

@@ -127,14 +127,15 @@ export interface FavoritesData {
 // COMMAND PALETTE
 // ============================================
 
-export interface CommandPaletteResult {
-  drawing: Drawing
-  discipline: string
-  isFavorite: boolean
-  isRecent: boolean
-}
+// Discriminated union for command palette items
+export type CommandPaletteItem = 
+  | { type: 'drawing'; data: Drawing; discipline: string; isFavorite: boolean; isRecent: boolean }
+  | { type: 'rfi'; data: RFI }
 
-export type CommandPaletteFilter = 'all' | 'favorites' | 'discipline' | 'recents'
+// Backward compatibility alias
+export type CommandPaletteResult = CommandPaletteItem
+
+export type CommandPaletteFilter = 'all' | 'favorites' | 'discipline' | 'recents' | 'rfis'
 
 // Export CommandPaletteDataProvider type
 export type { CommandPaletteDataProvider } from './command-palette'

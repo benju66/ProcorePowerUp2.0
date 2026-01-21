@@ -1,4 +1,4 @@
-import type { Drawing, DisciplineMap, RecentsList } from './index'
+import type { Drawing, DisciplineMap, RecentsList, RFI } from './index'
 
 /**
  * Data provider interface for Command Palette
@@ -24,4 +24,9 @@ export interface CommandPaletteDataProvider {
    * Get recent drawing numbers
    */
   getRecents(projectId: string): Promise<RecentsList>
+  
+  /**
+   * Get all RFIs for a project
+   */
+  getRFIs(projectId: string): Promise<RFI[]>
 }

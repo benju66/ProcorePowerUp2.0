@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
 import { StorageService } from '@/services'
-import type { Drawing, CommandPaletteResult, DisciplineMap, RecentsList } from '@/types'
+import type { Drawing, CommandPaletteItem, DisciplineMap, RecentsList, RFI } from '@/types'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
+
+// Group key constant for RFIs
+const RFI_GROUP_KEY = 'RFIs'
 
 // Fuzzy match helper (from v1)
 function fuzzyMatch(text: string, pattern: string): boolean {
@@ -38,6 +41,10 @@ class DefaultDataProvider implements CommandPaletteDataProvider {
   async getRecents(projectId: string): Promise<RecentsList> {
     return StorageService.getRecents(projectId)
   }
+
+  async getRFIs(projectId: string): Promise<RFI[]> {
+    return StorageService.getRFIs(projectId)
+  }
 }
 
 const defaultDataProvider = new DefaultDataProvider()
@@ -55,7 +62,7 @@ export function useCommandPalette(
   
   const [isOpen, setIsOpen] = useState(options?.defaultOpen ?? false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<CommandPaletteResult[]>([])
+  const [searchResults, setSearchResults] = useState<CommandPaletteItem[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
   const searchCancelledRef = useRef(false)
@@ -121,10 +128,11 @@ export function useCommandPalette(
       setIsSearching(true)
       
       try {
-        const [drawings, disciplineMap, favorites] = await Promise.all([
+        const [drawings, disciplineMap, favorites, rfis] = await Promise.all([
           provider.getDrawings(projectId!),
           provider.getDisciplineMap(projectId!),
           provider.getAllFavoriteDrawings(projectId!),
+          provider.getRFIs(projectId!),
         ])
         
         // Update favorite set state
@@ -137,11 +145,14 @@ export function useCommandPalette(
         if (searchCancelledRef.current) return
         
         let cleanQuery = searchQuery.toLowerCase().trim()
-        let filter: 'all' | 'favorites' | 'discipline' | 'recents' = 'all'
+        let filter: 'all' | 'favorites' | 'discipline' | 'recents' | 'rfis' = 'all'
         let disciplineFilter = ''
 
         // Parse special prefixes
-        if (cleanQuery.startsWith('*')) {
+        if (cleanQuery.startsWith('?')) {
+          filter = 'rfis'
+          cleanQuery = cleanQuery.substring(1).trim()
+        } else if (cleanQuery.startsWith('*')) {
           filter = 'favorites'
           cleanQuery = cleanQuery.substring(1).trim()
         } else if (cleanQuery.startsWith('@')) {
@@ -160,22 +171,43 @@ export function useCommandPalette(
           return d.discipline_name || 'General'
         }
 
-        let results: CommandPaletteResult[] = []
+        let results: CommandPaletteItem[] = []
 
-        // Handle recents (empty search)
-        if (filter === 'recents') {
+        // Handle RFI-only search (? prefix)
+        if (filter === 'rfis') {
+          const filteredRFIs = cleanQuery
+            ? rfis.filter(r =>
+                fuzzyMatch(r.number || '', cleanQuery) ||
+                fuzzyMatch(r.subject || '', cleanQuery)
+              )
+            : rfis // Show all RFIs if just "?"
+          
+          // Sort RFIs by number (numeric)
+          const sortedRFIs = filteredRFIs.sort((a, b) => 
+            parseInt(a.number || '0') - parseInt(b.number || '0')
+          )
+          
+          results = sortedRFIs.slice(0, 50).map(r => ({
+            type: 'rfi' as const,
+            data: r,
+          }))
+        }
+        // Handle recents (empty search) - drawings only
+        else if (filter === 'recents') {
           const recentDrawings = currentRecents
             .map(num => drawings.find(d => d.num === num))
             .filter((d): d is Drawing => d !== undefined)
 
           results = recentDrawings.map(d => ({
-            drawing: d,
+            type: 'drawing' as const,
+            data: d,
             discipline: getDisciplineName(d),
             isFavorite: favorites.has(d.num),
             isRecent: true,
           }))
-        } else {
-          // Filter drawings
+        }
+        // Handle favorites or discipline filter (drawings only)
+        else if (filter === 'favorites' || filter === 'discipline') {
           const filtered = drawings.filter(d => {
             // Favorites filter
             if (filter === 'favorites' && !favorites.has(d.num)) {
@@ -188,7 +220,7 @@ export function useCommandPalette(
               return fuzzyMatch(discName, disciplineFilter)
             }
 
-            // Standard search
+            // Additional query filter for favorites
             if (cleanQuery) {
               const discName = getDisciplineName(d)
               return (
@@ -202,25 +234,27 @@ export function useCommandPalette(
           })
 
           // Convert to results
-          results = filtered.map(d => ({
-            drawing: d,
+          const drawingResults: CommandPaletteItem[] = filtered.map(d => ({
+            type: 'drawing' as const,
+            data: d,
             discipline: getDisciplineName(d),
             isFavorite: favorites.has(d.num),
             isRecent: currentRecents.includes(d.num),
           }))
 
           // Group by discipline and sort
-          const grouped = new Map<string, CommandPaletteResult[]>()
-          results.forEach(r => {
-            if (!grouped.has(r.discipline)) {
-              grouped.set(r.discipline, [])
+          const grouped = new Map<string, CommandPaletteItem[]>()
+          drawingResults.forEach(r => {
+            if (r.type === 'drawing') {
+              if (!grouped.has(r.discipline)) {
+                grouped.set(r.discipline, [])
+              }
+              grouped.get(r.discipline)!.push(r)
             }
-            grouped.get(r.discipline)!.push(r)
           })
 
           // Sort disciplines by map index, then alphabetically
           const sortedGroups = Array.from(grouped.entries()).sort((a, b) => {
-            // Guard against undefined/null disciplineMap to prevent Object.values crash
             const discA = disciplineMap ? Object.values(disciplineMap).find(m => m.name === a[0]) : undefined
             const discB = disciplineMap ? Object.values(disciplineMap).find(m => m.name === b[0]) : undefined
             const indexA = discA?.index ?? 9999
@@ -230,11 +264,100 @@ export function useCommandPalette(
           })
 
           // Flatten back to array, limit to 50
-          const flattened: CommandPaletteResult[] = []
+          const flattened: CommandPaletteItem[] = []
           for (const [_, items] of sortedGroups) {
-            const sorted = items.sort((a, b) =>
-              (a.drawing.num || '').localeCompare(b.drawing.num || '', undefined, { numeric: true })
-            )
+            const sorted = items.sort((a, b) => {
+              if (a.type === 'drawing' && b.type === 'drawing') {
+                return (a.data.num || '').localeCompare(b.data.num || '', undefined, { numeric: true })
+              }
+              return 0
+            })
+            flattened.push(...sorted)
+            if (flattened.length >= 50) break
+          }
+
+          results = flattened.slice(0, 50)
+        }
+        // Standard search - search BOTH drawings and RFIs
+        else {
+          // Filter drawings
+          const filteredDrawings = cleanQuery
+            ? drawings.filter(d => {
+                const discName = getDisciplineName(d)
+                return (
+                  fuzzyMatch(d.num || '', cleanQuery) ||
+                  fuzzyMatch(d.title || '', cleanQuery) ||
+                  fuzzyMatch(discName, cleanQuery)
+                )
+              })
+            : drawings
+
+          // Filter RFIs
+          const filteredRFIs = cleanQuery
+            ? rfis.filter(r =>
+                fuzzyMatch(r.number || '', cleanQuery) ||
+                fuzzyMatch(r.subject || '', cleanQuery)
+              )
+            : [] // Don't show all RFIs on empty search (that's handled by recents)
+
+          // Convert drawings to results
+          const drawingResults: CommandPaletteItem[] = filteredDrawings.map(d => ({
+            type: 'drawing' as const,
+            data: d,
+            discipline: getDisciplineName(d),
+            isFavorite: favorites.has(d.num),
+            isRecent: currentRecents.includes(d.num),
+          }))
+
+          // Convert RFIs to results
+          const rfiResults: CommandPaletteItem[] = filteredRFIs.map(r => ({
+            type: 'rfi' as const,
+            data: r,
+          }))
+
+          // Group drawings by discipline
+          const grouped = new Map<string, CommandPaletteItem[]>()
+          drawingResults.forEach(r => {
+            if (r.type === 'drawing') {
+              if (!grouped.has(r.discipline)) {
+                grouped.set(r.discipline, [])
+              }
+              grouped.get(r.discipline)!.push(r)
+            }
+          })
+
+          // Sort disciplines by map index, then alphabetically
+          const sortedGroups = Array.from(grouped.entries()).sort((a, b) => {
+            const discA = disciplineMap ? Object.values(disciplineMap).find(m => m.name === a[0]) : undefined
+            const discB = disciplineMap ? Object.values(disciplineMap).find(m => m.name === b[0]) : undefined
+            const indexA = discA?.index ?? 9999
+            const indexB = discB?.index ?? 9999
+            if (indexA !== indexB) return indexA - indexB
+            return a[0].localeCompare(b[0])
+          })
+
+          // Add RFIs group at the end if there are any
+          if (rfiResults.length > 0) {
+            // Sort RFIs by number (numeric)
+            rfiResults.sort((a, b) => {
+              if (a.type === 'rfi' && b.type === 'rfi') {
+                return parseInt(a.data.number || '0') - parseInt(b.data.number || '0')
+              }
+              return 0
+            })
+            sortedGroups.push([RFI_GROUP_KEY, rfiResults])
+          }
+
+          // Flatten back to array, limit to 50 total
+          const flattened: CommandPaletteItem[] = []
+          for (const [_, items] of sortedGroups) {
+            const sorted = items.sort((a, b) => {
+              if (a.type === 'drawing' && b.type === 'drawing') {
+                return (a.data.num || '').localeCompare(b.data.num || '', undefined, { numeric: true })
+              }
+              // RFIs are already sorted
+              return 0
+            })
             flattened.push(...sorted)
             if (flattened.length >= 50) break
           }
@@ -305,3 +428,6 @@ export function useCommandPalette(
     handleKeyDown,
   }
 }
+
+// Export the RFI group key for use in the UI component
+export { RFI_GROUP_KEY }

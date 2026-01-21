@@ -667,11 +667,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     (async () => {
       try {
-        const [drawings, disciplineMap, favorites, recents] = await Promise.all([
+        const [drawings, disciplineMap, favorites, recents, rfis] = await Promise.all([
           StorageService.getDrawings(projectId),
           StorageService.getDisciplineMap(projectId),
           StorageService.getAllFavoriteDrawings(projectId),
           StorageService.getRecents(projectId),
+          StorageService.getRFIs(projectId),
         ])
         
         sendResponse({
@@ -680,6 +681,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           disciplineMap,
           favorites: Array.from(favorites), // Convert Set to Array for JSON serialization
           recents,
+          rfis,
         })
       } catch (error) {
         console.error('PP Background: Error getting project data:', error)

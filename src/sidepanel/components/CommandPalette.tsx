@@ -1,10 +1,18 @@
 import { useEffect, useRef } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
-import { useCommandPalette } from '../hooks/useCommandPalette'
+import { useCommandPalette, RFI_GROUP_KEY } from '../hooks/useCommandPalette'
 import { getDisciplineColor } from '../utils/discipline'
-import { Loader2 } from 'lucide-preact'
-import type { CommandPaletteResult, Project } from '@/types'
+import { Loader2, HelpCircle } from 'lucide-preact'
+import type { CommandPaletteItem, Project } from '@/types'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
+
+// RFI status badge colors
+const RFI_STATUS_COLORS: Record<string, string> = {
+  'open': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  'closed': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  'draft': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+  'void': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+}
 
 interface CommandPaletteProps {
   projectId: string | null
@@ -105,24 +113,34 @@ export function CommandPalette({
     // but stopPropagation above ensures Procore doesn't intercept them
   }
 
-  const handleResultClick = async (result: CommandPaletteResult) => {
+  const handleResultClick = async (result: CommandPaletteItem) => {
     try {
-      // Use OPEN_DRAWING action - background script handles storage access
-      // This works in both sidepanel and overlay contexts
-      const response = await chrome.runtime.sendMessage({
-        action: 'OPEN_DRAWING',
-        projectId,
-        drawingId: result.drawing.id,
-        drawingNum: result.drawing.num,
-      })
-      
-      if (response?.success) {
+      if (result.type === 'drawing') {
+        // Use OPEN_DRAWING action - background script handles storage access
+        // This works in both sidepanel and overlay contexts
+        const response = await chrome.runtime.sendMessage({
+          action: 'OPEN_DRAWING',
+          projectId,
+          drawingId: result.data.id,
+          drawingNum: result.data.num,
+        })
+        
+        if (response?.success) {
+          close()
+        } else {
+          console.error('Failed to open drawing:', response?.error)
+        }
+      } else if (result.type === 'rfi') {
+        // Open RFI using OPEN_TAB action (handles openInBackground preference internally)
+        const url = `https://app.procore.com/${projectId}/project/rfi/show/${result.data.id}`
+        await chrome.runtime.sendMessage({
+          action: 'OPEN_TAB',
+          url,
+        })
         close()
-      } else {
-        console.error('Failed to open drawing:', response?.error)
       }
     } catch (error) {
-      console.error('Failed to open drawing:', error)
+      console.error('Failed to open item:', error)
     }
   }
 
@@ -136,16 +154,28 @@ export function CommandPalette({
 
   if (!isOpen) return null
 
-  // Group results by discipline
-  const groupedResults = new Map<string, CommandPaletteResult[]>()
+  // Group results by discipline (for drawings) or RFI_GROUP_KEY (for RFIs)
+  const groupedResults = new Map<string, CommandPaletteItem[]>()
   searchResults.forEach(r => {
-    if (!groupedResults.has(r.discipline)) {
-      groupedResults.set(r.discipline, [])
+    const groupKey = r.type === 'drawing' ? r.discipline : RFI_GROUP_KEY
+    if (!groupedResults.has(groupKey)) {
+      groupedResults.set(groupKey, [])
     }
-    groupedResults.get(r.discipline)!.push(r)
+    groupedResults.get(groupKey)!.push(r)
   })
 
   let resultIndex = 0
+
+  // Get empty state message
+  const getEmptyStateMessage = () => {
+    if (!searchQuery.trim()) {
+      return 'No recent drawings'
+    }
+    if (searchQuery.startsWith('?')) {
+      return 'No RFIs found'
+    }
+    return 'No results found'
+  }
 
   const paletteContent = (
     <div
@@ -189,7 +219,7 @@ export function CommandPalette({
           type="text"
           value={searchQuery}
           onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
-          placeholder="Jump to drawing... (Type to search, * for favorites, @ for discipline)"
+          placeholder="Jump to drawing or RFI... (? for RFIs, * favorites, @ discipline)"
           className="w-full px-4 py-3 text-base border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
           autoComplete="off"
         />
@@ -203,69 +233,119 @@ export function CommandPalette({
             </div>
           ) : searchResults.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              {searchQuery.trim() ? 'No drawings found' : 'No recent drawings'}
+              {getEmptyStateMessage()}
             </div>
           ) : (
-            Array.from(groupedResults.entries()).map(([discipline, results]) => (
-              <div key={discipline} className="mb-3">
-                {/* Discipline header with colored tag - matches v2 sidebar style */}
-                <div className="px-2 py-1.5 flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded mb-1">
-                  {/* Colored discipline tag with first letter */}
-                  <span 
-                    className={`w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center flex-shrink-0 ${getDisciplineColor(discipline)}`}
-                  >
-                    {discipline.charAt(0).toUpperCase()}
-                  </span>
-                  {/* Discipline name */}
-                  <span className="font-medium text-sm text-gray-700 dark:text-gray-300">
-                    {discipline}
-                  </span>
-                  {/* Result count badge */}
-                  <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded-full ml-auto">
-                    {results.length}
-                  </span>
+            Array.from(groupedResults.entries()).map(([groupName, results]) => {
+              const isRFIGroup = groupName === RFI_GROUP_KEY
+              
+              return (
+                <div key={groupName} className="mb-3">
+                  {/* Group header */}
+                  <div className="px-2 py-1.5 flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded mb-1">
+                    {isRFIGroup ? (
+                      // RFI group header with HelpCircle icon
+                      <>
+                        <span className="w-5 h-5 rounded bg-red-500 text-white flex items-center justify-center flex-shrink-0">
+                          <HelpCircle size={14} />
+                        </span>
+                        <span className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                          RFIs
+                        </span>
+                      </>
+                    ) : (
+                      // Discipline header with colored tag
+                      <>
+                        <span 
+                          className={`w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center flex-shrink-0 ${getDisciplineColor(groupName)}`}
+                        >
+                          {groupName.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="font-medium text-sm text-gray-700 dark:text-gray-300">
+                          {groupName}
+                        </span>
+                      </>
+                    )}
+                    {/* Result count badge */}
+                    <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded-full ml-auto">
+                      {results.length}
+                    </span>
+                  </div>
+                  
+                  <ul className="space-y-1">
+                    {results.map(result => {
+                      const index = resultIndex++
+                      const isSelected = index === selectedIndex
+                      
+                      if (result.type === 'drawing') {
+                        // Drawing row
+                        return (
+                          <li
+                            key={`drawing-${result.data.id}-${index}`}
+                            onClick={() => handleResultClick(result)}
+                            className={`px-3 py-2 rounded cursor-pointer flex items-center gap-2 ${
+                              isSelected
+                                ? 'bg-blue-100 dark:bg-blue-900/30'
+                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium min-w-[70px]">
+                              {result.data.num}
+                            </span>
+                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">
+                              {result.data.title}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {result.isFavorite && (
+                                <span className="text-yellow-500 text-xs" title="Favorite">★</span>
+                              )}
+                              {result.isRecent && (
+                                <span className="text-gray-400 dark:text-gray-500 text-xs" title="Recent">●</span>
+                              )}
+                            </div>
+                          </li>
+                        )
+                      } else {
+                        // RFI row
+                        const statusClass = RFI_STATUS_COLORS[result.data.status?.toLowerCase()] || RFI_STATUS_COLORS['draft']
+                        
+                        return (
+                          <li
+                            key={`rfi-${result.data.id}-${index}`}
+                            onClick={() => handleResultClick(result)}
+                            className={`px-3 py-2 rounded cursor-pointer flex items-center gap-2 ${
+                              isSelected
+                                ? 'bg-blue-100 dark:bg-blue-900/30'
+                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {/* Status badge */}
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusClass}`}>
+                              {result.data.status}
+                            </span>
+                            {/* RFI number */}
+                            <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium">
+                              #{result.data.number}
+                            </span>
+                            {/* Subject */}
+                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">
+                              {result.data.subject}
+                            </span>
+                          </li>
+                        )
+                      }
+                    })}
+                  </ul>
                 </div>
-                <ul className="space-y-1">
-                  {results.map(result => {
-                    const index = resultIndex++
-                    const isSelected = index === selectedIndex
-                    
-                    return (
-                      <li
-                        key={`${result.drawing.id}-${index}`}
-                        onClick={() => handleResultClick(result)}
-                        className={`px-3 py-2 rounded cursor-pointer flex items-center gap-2 ${
-                          isSelected
-                            ? 'bg-blue-100 dark:bg-blue-900/30'
-                            : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-medium min-w-[70px]">
-                          {result.drawing.num}
-                        </span>
-                        <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">
-                          {result.drawing.title}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {result.isFavorite && (
-                            <span className="text-yellow-500 text-xs" title="Favorite">★</span>
-                          )}
-                          {result.isRecent && (
-                            <span className="text-gray-400 dark:text-gray-500 text-xs" title="Recent">●</span>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 
         {/* Footer */}
         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-4">
+            <span><b>?</b> RFIs</span>
             <span><b>@</b> Discipline</span>
             <span><b>*</b> Favorites</span>
           </div>
