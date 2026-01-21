@@ -16,6 +16,7 @@ export interface UserPreferences {
   openInBackground: boolean
   showRFIsTab: boolean
   showCostTab: boolean
+  showSpecificationsTab: boolean
   animationLevel: AnimationLevel
   showHeaderToolButtons: boolean
   visibleTools: ToolId[]
@@ -26,6 +27,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   openInBackground: false,
   showRFIsTab: false,
   showCostTab: false,
+  showSpecificationsTab: false,
   animationLevel: 'normal',
   showHeaderToolButtons: true,
   visibleTools: ['home', 'drawings', 'submittals', 'rfis', 'directory'],
@@ -40,6 +42,7 @@ export const PREFERENCE_KEYS = {
   openInBackground: 'openInBackground',
   showRFIsTab: 'showRFIsTab',
   showCostTab: 'showCostTab',
+  showSpecificationsTab: 'showSpecificationsTab',
   recentsExpanded: 'recentsExpanded',
   favoritesExpanded: 'favoritesExpanded',
   animationLevel: 'animationLevel',

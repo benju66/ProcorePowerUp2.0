@@ -6,16 +6,18 @@ import { TabBar } from './components/TabBar'
 import { DrawingsTab } from './components/DrawingsTab'
 import { RFIsTab } from './components/RFIsTab'
 import { CostTab } from './components/CostTab'
+import { SpecificationsTab } from './components/SpecificationsTab'
 import { ProjectSelector } from './components/ProjectSelector'
 import { CommandPalette } from './components/CommandPalette'
 import { FavoritesProvider } from './contexts/FavoritesContext'
 import { useTabVisibility } from './contexts/TabVisibilityContext'
-import { PencilRuler, HelpCircle, BadgeDollarSign, Loader2 } from 'lucide-preact'
+import { PencilRuler, HelpCircle, BadgeDollarSign, FileText, Loader2 } from 'lucide-preact'
 
 const TABS: TabInfo[] = [
   { id: 'drawings', label: 'Drawings', icon: PencilRuler },
   { id: 'rfis', label: 'RFIs', icon: HelpCircle },
   { id: 'cost', label: 'Cost', icon: BadgeDollarSign },
+  { id: 'specifications', label: 'Specs', icon: FileText },
 ]
 
 // Helper to extract IDs from URL
@@ -46,15 +48,16 @@ export function App() {
   const [dataVersion, setDataVersion] = useState(0)
   
   // Tab visibility from context
-  const { showRFIsTab, showCostTab } = useTabVisibility()
+  const { showRFIsTab, showCostTab, showSpecificationsTab } = useTabVisibility()
   
   // Filter tabs based on visibility settings
   const visibleTabs = useMemo(() => 
     TABS.filter(tab => {
       if (tab.id === 'rfis') return showRFIsTab
       if (tab.id === 'cost') return showCostTab
+      if (tab.id === 'specifications') return showSpecificationsTab
       return true // Always show drawings
-    }), [showRFIsTab, showCostTab])
+    }), [showRFIsTab, showCostTab, showSpecificationsTab])
   
   // Handle edge case: if current tab is hidden, switch to drawings
   useEffect(() => {
@@ -64,7 +67,10 @@ export function App() {
     if (activeTab === 'cost' && !showCostTab) {
       setActiveTab('drawings')
     }
-  }, [showRFIsTab, showCostTab, activeTab])
+    if (activeTab === 'specifications' && !showSpecificationsTab) {
+      setActiveTab('drawings')
+    }
+  }, [showRFIsTab, showCostTab, showSpecificationsTab, activeTab])
 
   // Initialize and detect current project
   useEffect(() => {
@@ -256,6 +262,8 @@ export function App() {
         return <RFIsTab projectId={currentProjectId} dataVersion={dataVersion} />
       case 'cost':
         return <CostTab projectId={currentProjectId} dataVersion={dataVersion} />
+      case 'specifications':
+        return <SpecificationsTab projectId={currentProjectId} dataVersion={dataVersion} />
       default:
         return null
     }

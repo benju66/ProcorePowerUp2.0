@@ -12,7 +12,7 @@
 import { StorageService } from '../services/storage'
 import { ApiService } from '../services/api'
 import { PREFERENCE_KEYS } from '../types/preferences'
-import type { WiretapMessage, Drawing, Commitment, DisciplineMap } from '../types'
+import type { WiretapMessage, Drawing, Commitment, Specification, DisciplineMap, DivisionMap } from '../types'
 
 // ============================================
 // DATA DETECTION FUNCTIONS (ported from v1)
@@ -24,6 +24,7 @@ interface RawDataItem {
   number?: string
   drawing_number?: string
   title?: string
+  description?: string  // Used by specifications
   vendor?: string
   vendor_name?: string
   contract_date?: string
@@ -33,6 +34,8 @@ interface RawDataItem {
   subject?: string
   status?: string
   total_revisions?: number  // Used by discipline items
+  specification_section_division_id?: string  // Used by specifications
+  specification_area_id?: string  // Used by specifications
   [key: string]: unknown
 }
 
@@ -56,6 +59,20 @@ function isDrawing(item: RawDataItem): boolean {
 function isRFI(item: RawDataItem): boolean {
   return !(!item || !item.id || item.drawing_number || item.vendor || item.vendor_name) && 
     !!(item.subject && item.status && item.number !== undefined)
+}
+
+function isSpecification(item: RawDataItem): boolean {
+  if (!item || !item.id) return false
+  // Must have specification-specific fields (description + number, or division ID)
+  if (item.specification_section_division_id || item.specification_area_id) return true
+  // Has description (title) and number but NOT drawing/commitment/RFI specific fields
+  if (item.description && item.number) {
+    if (item.drawing_number) return false
+    if (item.vendor || item.vendor_name || item.contract_date) return false
+    if (item.subject && item.status) return false  // RFI has subject + status
+    return true
+  }
+  return false
 }
 
 function findDataInObject(obj: unknown): RawDataItem[] {
@@ -275,7 +292,65 @@ async function handleWiretapData(wiretapMessage: WiretapMessage): Promise<{ save
       return { saved: true, type: 'commitments', count: commitments.length }
     }
   }
+
+  // Process Divisions FIRST (before specifications, since division URLs contain 'specification')
+  const isDivisionSrc = sourceLower.includes('specification_section_divisions')
+  if (isDivisionSrc && firstItem && firstItem.description && !firstItem.specification_section_division_id) {
+    // Division objects have description but NOT specification_section_division_id
+    const divisionMap: DivisionMap = {}
+    dataItems.forEach((item, index) => {
+      if (item.id && (item.description || item.number)) {
+        const id = String(item.id)
+        const number = (item.number || '') as string
+        const name = (item.description || '') as string
+        divisionMap[id] = {
+          number,
+          name,
+          displayName: number && name ? `${number} - ${name}` : name || number || 'Unknown',
+          index
+        }
+      }
+    })
+    
+    if (Object.keys(divisionMap).length > 0) {
+      const existing = await StorageService.getDivisionMap(activeProjectId)
+      const merged = { ...existing, ...divisionMap }
+      await StorageService.saveDivisionMap(activeProjectId, merged)
+      console.log('PP Background: Saved', Object.keys(divisionMap).length, 'divisions from wiretap')
+      return { saved: true, type: 'divisions', count: Object.keys(divisionMap).length }
+    }
+  }
+
+  // Process Specifications (after divisions check)
+  const isSpecificationSrc = (sourceLower.includes('/specification') || 
+                              sourceLower.includes('specification_sections')) &&
+                             !sourceLower.includes('specification_section_divisions')
   
+  if (isSpecificationSrc && isSpecification(firstItem)) {
+    const specifications: Specification[] = dataItems.filter(isSpecification).map(item => {
+      // ID comes as string from v2.1 API
+      const numericId = typeof item.id === 'string' ? parseInt(item.id, 10) : item.id!
+      return {
+        id: numericId as number,
+        number: (item.number || '') as string,
+        title: (item.description || '') as string,  // 'description' is the title in Procore API
+        divisionId: item.specification_section_division_id as string | undefined,
+        created_at: item.created_at as string | undefined,
+        updated_at: item.updated_at as string | undefined,
+        revision: item.revision as string | undefined,
+        issued_date: item.issued_date as string | undefined,
+        received_date: item.received_date as string | undefined,
+        url: item.url as string | undefined,
+      }
+    })
+    
+    if (specifications.length > 0) {
+      await StorageService.mergeSpecifications(activeProjectId, specifications)
+      console.log('PP Background: Saved', specifications.length, 'specifications')
+      return { saved: true, type: 'specifications', count: specifications.length }
+    }
+  }
+
   // Process Drawings (default)
   console.log('PP Background: Checking if drawings...', {
     isDrawingSrc,
@@ -426,6 +501,39 @@ async function handleScanCommitments(projectId: string): Promise<{ success: bool
     return { success: true, count: commitments.length }
   } catch (error) {
     console.error('PP Background: Commitment scan failed', error)
+    return { success: false, error: String(error) }
+  }
+}
+
+async function handleScanSpecifications(projectId: string): Promise<{ success: boolean; count?: number; error?: string }> {
+  console.log('PP Background: Scanning specifications for project', projectId)
+  
+  try {
+    // Get company ID from project data (required for specifications API)
+    const project = await StorageService.getProject(projectId)
+    if (!project?.companyId) {
+      return { success: false, error: 'Company ID not found. Visit the Specifications page in Procore first.' }
+    }
+    
+    // Fetch divisions first
+    const divisions = await ApiService.fetchDivisions(projectId, project.companyId)
+    if (Object.keys(divisions).length > 0) {
+      const existingDivisions = await StorageService.getDivisionMap(projectId)
+      const mergedDivisions = { ...existingDivisions, ...divisions }
+      await StorageService.saveDivisionMap(projectId, mergedDivisions)
+      console.log('PP Background: Saved', Object.keys(divisions).length, 'divisions')
+    }
+    
+    // Fetch specifications
+    const specifications = await ApiService.fetchSpecifications(projectId, project.companyId)
+    if (specifications.length > 0) {
+      await StorageService.mergeSpecifications(projectId, specifications)
+    }
+    
+    console.log('PP Background: Scan complete, found', specifications.length, 'specifications')
+    return { success: true, count: specifications.length }
+  } catch (error) {
+    console.error('PP Background: Specification scan failed', error)
     return { success: false, error: String(error) }
   }
 }
@@ -620,6 +728,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((result) => {
         if (result.success) {
           chrome.runtime.sendMessage({ type: 'DATA_SAVED', payload: { type: 'commitments', count: result.count } }).catch(() => {})
+        }
+        sendResponse(result)
+      })
+      .catch((err) => sendResponse({ success: false, error: String(err) }))
+    return true
+  }
+
+  if (message.action === 'SCAN_SPECIFICATIONS') {
+    handleScanSpecifications(message.projectId)
+      .then((result) => {
+        if (result.success) {
+          chrome.runtime.sendMessage({ type: 'DATA_SAVED', payload: { type: 'specifications', count: result.count } }).catch(() => {})
         }
         sendResponse(result)
       })

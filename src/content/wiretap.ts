@@ -88,6 +88,11 @@
       return true
     }
 
+    // 4. Specifications
+    if (lower.includes('/specification') || lower.includes('specification_sections') || lower.includes('specification_section_divisions')) {
+      return true
+    }
+
     return false
   }
 

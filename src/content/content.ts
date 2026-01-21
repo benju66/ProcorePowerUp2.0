@@ -102,7 +102,7 @@ function cleanupScan(): void {
   isScanning = false
 }
 
-async function performPageScan(scanType: 'drawings' | 'rfis' | 'commitments'): Promise<{ success: boolean; message: string }> {
+async function performPageScan(scanType: 'drawings' | 'rfis' | 'commitments' | 'specifications'): Promise<{ success: boolean; message: string }> {
   if (isScanning) {
     return { success: false, message: 'Scan already in progress' }
   }
@@ -121,6 +121,10 @@ async function performPageScan(scanType: 'drawings' | 'rfis' | 'commitments'): P
   } else if (scanType === 'commitments') {
     if (!currentUrl.includes('/commitments') && !currentUrl.includes('/contracts')) {
       return { success: false, message: 'Navigate to the Commitments page first' }
+    }
+  } else if (scanType === 'specifications') {
+    if (!currentUrl.includes('/specification')) {
+      return { success: false, message: 'Navigate to the Specifications page first' }
     }
   }
 
@@ -191,6 +195,28 @@ async function performPageScan(scanType: 'drawings' | 'rfis' | 'commitments'): P
     chrome.runtime.sendMessage({
       type: 'SCAN_PROGRESS',
       payload: { status: 'scanning', scanType, percent: 15, message: 'Scrolling to load all drawings...' }
+    }).catch(() => {})
+  }
+
+  // For specifications, expand divisions (similar to drawings disciplines)
+  if (scanType === 'specifications') {
+    chrome.runtime.sendMessage({
+      type: 'SCAN_PROGRESS',
+      payload: { status: 'expanding', scanType, percent: 2, message: 'Expanding divisions...' }
+    }).catch(() => {})
+    
+    // Try the "Expand All" button first (common in AG Grid specs page)
+    const expandAllBtn = document.querySelector('.expand-button, [aria-label*="Open first groups"], [aria-label*="expand"]') as HTMLElement
+    if (expandAllBtn) {
+      console.log('PP: Expanding all divisions...')
+      expandAllBtn.click()
+      // Wait for divisions to expand and data to load
+      await new Promise(r => setTimeout(r, 3000))
+    }
+    
+    chrome.runtime.sendMessage({
+      type: 'SCAN_PROGRESS',
+      payload: { status: 'scanning', scanType, percent: 15, message: 'Scrolling to load all specifications...' }
     }).catch(() => {})
   }
 
@@ -293,7 +319,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case 'PAGE_SCAN': {
       // Trigger page-based scanning (expand + auto-scroll)
-      performPageScan(message.scanType as 'drawings' | 'rfis' | 'commitments')
+      performPageScan(message.scanType as 'drawings' | 'rfis' | 'commitments' | 'specifications')
         .then(sendResponse)
         .catch(err => sendResponse({ success: false, message: String(err) }))
       return true // Keep channel open for async

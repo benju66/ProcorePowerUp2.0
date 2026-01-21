@@ -46,7 +46,7 @@ export function Settings({
   onToggleTool,
 }: SettingsProps) {
   const { theme, setTheme } = useTheme()
-  const { showRFIsTab, showCostTab, setShowRFIsTab, setShowCostTab } = useTabVisibility()
+  const { showRFIsTab, showCostTab, showSpecificationsTab, setShowRFIsTab, setShowCostTab, setShowSpecificationsTab } = useTabVisibility()
   const { animationLevel, setAnimationLevel, triggerMood } = useMascot()
   const { folders, addFolder, removeFolder, addDrawingToFolder, isLoading: favoritesLoading } = useFavorites()
   const [openInBackground, setOpenInBackground] = useState(false)
@@ -57,7 +57,7 @@ export function Settings({
   
   // Scan state
   const [scanState, setScanState] = useState<{
-    type: 'drawings' | 'rfis' | 'commitments' | null
+    type: 'drawings' | 'rfis' | 'commitments' | 'specifications' | null
     isScanning: boolean
     percent: number
     status: string | null
@@ -251,7 +251,7 @@ export function Settings({
     }
   }
 
-  const handleScan = async (scanType: 'drawings' | 'rfis' | 'commitments') => {
+  const handleScan = async (scanType: 'drawings' | 'rfis' | 'commitments' | 'specifications') => {
     if (scanState.isScanning) return
 
     setScanState({
@@ -268,11 +268,17 @@ export function Settings({
       }
       
       if (!tabResponse?.isProcoreTab || !tabResponse.tabId) {
+        const pageNames: Record<string, string> = {
+          drawings: 'Drawings',
+          rfis: 'RFIs',
+          commitments: 'Commitments',
+          specifications: 'Specifications'
+        }
         setScanState({
           type: scanType,
           isScanning: false,
           percent: 0,
-          status: `Error: Open Procore ${scanType === 'drawings' ? 'Drawings' : scanType === 'rfis' ? 'RFIs' : 'Commitments'} page first`
+          status: `Error: Open Procore ${pageNames[scanType]} page first`
         })
         setTimeout(() => {
           setScanState({
@@ -546,6 +552,23 @@ export function Settings({
               </button>
             )}
             
+            {showSpecificationsTab && (
+              <button
+                onClick={() => handleScan('specifications')}
+                disabled={scanState.isScanning}
+                className="w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+              >
+                {scanState.isScanning && scanState.type === 'specifications' ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>{scanState.percent}%</span>
+                  </>
+                ) : (
+                  <span>Scan Specifications</span>
+                )}
+              </button>
+            )}
+            
             {scanState.status && (
               <div className={`px-2 py-1.5 text-xs rounded ${
                 scanState.status.startsWith('Error') 
@@ -604,6 +627,15 @@ export function Settings({
                 type="checkbox"
                 checked={showCostTab}
                 onChange={(e) => setShowCostTab((e.target as HTMLInputElement).checked)}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+            </label>
+            <label className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+              <span>Show Specifications Tab</span>
+              <input
+                type="checkbox"
+                checked={showSpecificationsTab}
+                onChange={(e) => setShowSpecificationsTab((e.target as HTMLInputElement).checked)}
                 className="w-4 h-4 text-blue-600 rounded"
               />
             </label>

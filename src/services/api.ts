@@ -7,7 +7,7 @@
  * The side panel should send messages to the background to trigger scans.
  */
 
-import type { Drawing, RFI, Commitment, DisciplineMap } from '@/types'
+import type { Drawing, RFI, Commitment, Specification, DisciplineMap, DivisionMap } from '@/types'
 
 const PROCORE_BASE = 'https://app.procore.com'
 
@@ -327,6 +327,115 @@ export const ApiService = {
         approved_amount: item.approved_amount as number | undefined,
         pending_amount: item.pending_amount as number | undefined,
         draft_amount: item.draft_amount as number | undefined,
+      }))
+  },
+
+  // ============================================
+  // SPECIFICATIONS
+  // ============================================
+
+  async fetchSpecifications(
+    projectId: string,
+    companyId: string,
+    options?: FetchOptions
+  ): Promise<Specification[]> {
+    const allSpecifications: Specification[] = []
+    let page = 1
+    const perPage = 100
+    let hasMore = true
+    let consecutiveErrors = 0
+
+    console.log('ApiService: Starting specification fetch for project', projectId, 'company', companyId)
+
+    while (hasMore && consecutiveErrors < 3) {
+      try {
+        // Note: Specifications API uses v2.1 and requires companyId in URL
+        const url = `${PROCORE_BASE}/rest/v2.1/companies/${companyId}/projects/${projectId}/specification_sections?page=${page}&per_page=${perPage}`
+        
+        const response = await this.fetchPaginated<unknown>(url, options)
+        const specifications = this.normalizeSpecifications(response.data)
+        
+        console.log('ApiService: Page', page, 'returned', specifications.length, 'specifications')
+        
+        allSpecifications.push(...specifications)
+        consecutiveErrors = 0
+        
+        if (options?.onProgress) {
+          options.onProgress(allSpecifications.length, response.total)
+        }
+
+        if (specifications.length === 0 || specifications.length < perPage) {
+          hasMore = false
+        } else {
+          page++
+        }
+        
+        if (page > 100) {
+          console.warn('ApiService: Hit page limit, stopping')
+          hasMore = false
+        }
+      } catch (error) {
+        console.error('ApiService: Error fetching specifications page', page, error)
+        consecutiveErrors++
+        if (consecutiveErrors >= 3) {
+          hasMore = false
+        }
+      }
+    }
+
+    console.log('ApiService: Finished, total specifications:', allSpecifications.length)
+    return allSpecifications
+  },
+
+  async fetchDivisions(
+    projectId: string,
+    companyId: string,
+    options?: FetchOptions
+  ): Promise<DivisionMap> {
+    const url = `${PROCORE_BASE}/rest/v2.1/companies/${companyId}/projects/${projectId}/specification_section_divisions?per_page=100`
+    
+    try {
+      const response = await this.fetchPaginated<Record<string, unknown>>(url, options)
+      const map: DivisionMap = {}
+      
+      response.data.forEach((div, index) => {
+        const id = String(div.id)
+        const number = (div.number || '') as string
+        const name = (div.description || '') as string
+        map[id] = {
+          number,
+          name,
+          displayName: number && name ? `${number} - ${name}` : name || number || 'Unknown',
+          index
+        }
+      })
+      
+      console.log('ApiService: Fetched', Object.keys(map).length, 'divisions')
+      return map
+    } catch (error) {
+      console.error('ApiService: Error fetching divisions', error)
+      return {}
+    }
+  },
+
+  normalizeSpecifications(data: unknown[]): Specification[] {
+    return data
+      .filter((item): item is Record<string, unknown> => 
+        item !== null && typeof item === 'object' && 'id' in item
+      )
+      .map(item => ({
+        // ID comes as string from v2.1 API, convert to number
+        id: typeof item.id === 'string' ? parseInt(item.id, 10) : item.id as number,
+        number: (item.number || '') as string,
+        // 'description' field is the title in Procore's API
+        title: (item.description || '') as string,
+        divisionId: item.specification_section_division_id as string | undefined,
+        created_at: item.created_at as string | undefined,
+        updated_at: item.updated_at as string | undefined,
+        revision: item.revision as string | undefined,
+        issued_date: item.issued_date as string | undefined,
+        received_date: item.received_date as string | undefined,
+        url: item.url as string | undefined,
       }))
   },
 

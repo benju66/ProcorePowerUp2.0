@@ -34,6 +34,28 @@ export interface Commitment {
   draft_amount?: number
 }
 
+export interface Specification {
+  id: number
+  number: string
+  title: string                     // From API 'description' field
+  divisionId?: string               // specification_section_division_id
+  created_at?: string
+  updated_at?: string
+  revision?: string
+  issued_date?: string
+  received_date?: string
+  url?: string
+}
+
+export interface DivisionMap {
+  [divisionId: string]: {
+    number: string      // "00"
+    name: string        // "Introductory Information, Procurement & Contracting"
+    displayName: string // "00 - Introductory Information, Procurement & Contracting"
+    index: number       // Sort order
+  }
+}
+
 export interface Project {
   id: string
   companyId?: string
@@ -74,7 +96,7 @@ export interface WiretapMessage {
 }
 
 export interface TabInfo {
-  id: 'drawings' | 'rfis' | 'cost'
+  id: 'drawings' | 'rfis' | 'cost' | 'specifications'
   label: string
   icon: import('lucide-preact').LucideIcon
 }

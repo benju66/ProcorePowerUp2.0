@@ -15,8 +15,10 @@ import { PREFERENCE_KEYS, DEFAULT_PREFERENCES } from '@/types/preferences'
 interface TabVisibilityContextValue {
   showRFIsTab: boolean
   showCostTab: boolean
+  showSpecificationsTab: boolean
   setShowRFIsTab: (visible: boolean) => Promise<void>
   setShowCostTab: (visible: boolean) => Promise<void>
+  setShowSpecificationsTab: (visible: boolean) => Promise<void>
 }
 
 const TabVisibilityContext = createContext<TabVisibilityContextValue | undefined>(undefined)
@@ -28,12 +30,13 @@ interface TabVisibilityProviderProps {
 export function TabVisibilityProvider({ children }: TabVisibilityProviderProps) {
   const [showRFIsTab, setShowRFIsTabState] = useState(DEFAULT_PREFERENCES.showRFIsTab)
   const [showCostTab, setShowCostTabState] = useState(DEFAULT_PREFERENCES.showCostTab)
+  const [showSpecificationsTab, setShowSpecificationsTabState] = useState(DEFAULT_PREFERENCES.showSpecificationsTab)
 
   // Load preferences from storage on mount
   useEffect(() => {
     async function loadPreferences() {
       try {
-        const [rfis, cost] = await Promise.all([
+        const [rfis, cost, specs] = await Promise.all([
           StorageService.getPreferences<boolean>(
             PREFERENCE_KEYS.showRFIsTab,
             DEFAULT_PREFERENCES.showRFIsTab
@@ -42,9 +45,14 @@ export function TabVisibilityProvider({ children }: TabVisibilityProviderProps) 
             PREFERENCE_KEYS.showCostTab,
             DEFAULT_PREFERENCES.showCostTab
           ),
+          StorageService.getPreferences<boolean>(
+            PREFERENCE_KEYS.showSpecificationsTab,
+            DEFAULT_PREFERENCES.showSpecificationsTab
+          ),
         ])
         setShowRFIsTabState(rfis)
         setShowCostTabState(cost)
+        setShowSpecificationsTabState(specs)
       } catch (error) {
         console.error('Failed to load tab visibility preferences:', error)
       }
@@ -74,12 +82,25 @@ export function TabVisibilityProvider({ children }: TabVisibilityProviderProps) 
     }
   }, [])
 
+  const setShowSpecificationsTab = useCallback(async (visible: boolean) => {
+    setShowSpecificationsTabState(visible)
+    try {
+      await StorageService.savePreference(PREFERENCE_KEYS.showSpecificationsTab, visible)
+    } catch (error) {
+      console.error('Failed to save Specifications tab preference:', error)
+      // Revert on error
+      setShowSpecificationsTabState(!visible)
+    }
+  }, [])
+
   return (
     <TabVisibilityContext.Provider value={{
       showRFIsTab,
       showCostTab,
+      showSpecificationsTab,
       setShowRFIsTab,
       setShowCostTab,
+      setShowSpecificationsTab,
     }}>
       {children}
     </TabVisibilityContext.Provider>

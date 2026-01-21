@@ -13,9 +13,11 @@ import type {
   Drawing, 
   RFI, 
   Commitment, 
+  Specification,
   Project, 
   ProjectCache,
   DisciplineMap,
+  DivisionMap,
   StatusColor,
   DrawingStatusColors,
   RecentsList,
@@ -27,6 +29,7 @@ import type {
 const drawingsStore = createStore('pp-drawings', 'drawings')
 const rfisStore = createStore('pp-rfis', 'rfis')
 const commitmentsStore = createStore('pp-commitments', 'commitments')
+const specificationsStore = createStore('pp-specifications', 'specifications')
 const projectsStore = createStore('pp-projects', 'projects')
 const preferencesStore = createStore('pp-preferences', 'preferences')
 
@@ -34,7 +37,9 @@ const preferencesStore = createStore('pp-preferences', 'preferences')
 const drawingKey = (projectId: string) => `drawings_${projectId}`
 const rfiKey = (projectId: string) => `rfis_${projectId}`
 const commitmentKey = (projectId: string) => `commitments_${projectId}`
+const specificationKey = (projectId: string) => `specifications_${projectId}`
 const disciplineMapKey = (projectId: string) => `discipline_map_${projectId}`
+const divisionMapKey = (projectId: string) => `division_map_${projectId}`
 const statusColorsKey = (projectId: string) => `status_colors_${projectId}`
 const recentsKey = (projectId: string) => `recents_${projectId}`
 const favoritesKey = (projectId: string) => `favorites_${projectId}`
@@ -145,6 +150,42 @@ export const StorageService = {
   },
 
   // ============================================
+  // SPECIFICATIONS
+  // ============================================
+  
+  async getSpecifications(projectId: string): Promise<Specification[]> {
+    if (!projectId) return []
+    const data = await get<Specification[]>(specificationKey(projectId), specificationsStore)
+    return data ?? []
+  },
+
+  async saveSpecifications(projectId: string, specifications: Specification[]): Promise<void> {
+    if (!projectId) return
+    await set(specificationKey(projectId), specifications, specificationsStore)
+  },
+
+  async mergeSpecifications(projectId: string, newSpecifications: Specification[]): Promise<Specification[]> {
+    if (!projectId) return []
+    const existing = await this.getSpecifications(projectId)
+    const existingIds = new Set(existing.map(s => s.id))
+    const toAdd = newSpecifications.filter(s => !existingIds.has(s.id))
+    const merged = [...existing, ...toAdd]
+    await this.saveSpecifications(projectId, merged)
+    return merged
+  },
+
+  async getDivisionMap(projectId: string): Promise<DivisionMap> {
+    if (!projectId) return {}
+    const data = await get<DivisionMap>(divisionMapKey(projectId), specificationsStore)
+    return data ?? {}
+  },
+
+  async saveDivisionMap(projectId: string, map: DivisionMap): Promise<void> {
+    if (!projectId) return
+    await set(divisionMapKey(projectId), map, specificationsStore)
+  },
+
+  // ============================================
   // PROJECTS
   // ============================================
   
@@ -201,6 +242,8 @@ export const StorageService = {
     await del(disciplineMapKey(projectId), drawingsStore)
     await del(rfiKey(projectId), rfisStore)
     await del(commitmentKey(projectId), commitmentsStore)
+    await del(specificationKey(projectId), specificationsStore)
+    await del(divisionMapKey(projectId), specificationsStore)
   },
 
   async deleteProject(projectId: string): Promise<void> {
@@ -211,6 +254,8 @@ export const StorageService = {
     await del(disciplineMapKey(projectId), drawingsStore)
     await del(rfiKey(projectId), rfisStore)
     await del(commitmentKey(projectId), commitmentsStore)
+    await del(specificationKey(projectId), specificationsStore)
+    await del(divisionMapKey(projectId), specificationsStore)
     
     // Delete project preferences
     await del(statusColorsKey(projectId), preferencesStore)
@@ -225,6 +270,7 @@ export const StorageService = {
     await clear(drawingsStore)
     await clear(rfisStore)
     await clear(commitmentsStore)
+    await clear(specificationsStore)
     await clear(projectsStore)
   },
 
@@ -372,6 +418,7 @@ export const StorageService = {
       data[`drawings_${project.id}`] = await this.getDrawings(project.id)
       data[`rfis_${project.id}`] = await this.getRFIs(project.id)
       data[`commitments_${project.id}`] = await this.getCommitments(project.id)
+      data[`specifications_${project.id}`] = await this.getSpecifications(project.id)
     }
     
     return data
