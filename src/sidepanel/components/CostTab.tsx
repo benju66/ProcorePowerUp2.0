@@ -3,7 +3,6 @@ import type { Commitment } from '@/types'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
 import { SearchInput } from './SearchInput'
-import { VirtualizedList } from './VirtualizedList'
 
 interface CostTabProps {
   projectId: string
@@ -83,12 +82,18 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
   const filteredCommitments = useMemo(() => {
     if (!searchQuery.trim()) return commitments
     const query = searchQuery.toLowerCase()
-    return commitments.filter(c => 
-      c.number?.toLowerCase().includes(query) ||
-      c.title?.toLowerCase().includes(query) ||
-      c.vendor_name?.toLowerCase().includes(query) ||
-      c.vendor?.toLowerCase().includes(query)
-    )
+    return commitments.filter(c => {
+      // Handle vendor which might be a string or object from Procore API
+      const vendorStr = typeof c.vendor === 'string' ? c.vendor : 
+        (c.vendor && typeof c.vendor === 'object' ? (c.vendor as { name?: string }).name : undefined)
+      
+      return (
+        c.number?.toLowerCase().includes(query) ||
+        c.title?.toLowerCase().includes(query) ||
+        c.vendor_name?.toLowerCase().includes(query) ||
+        vendorStr?.toLowerCase().includes(query)
+      )
+    })
   }, [commitments, searchQuery])
 
   const totals = useMemo(() => {
@@ -227,11 +232,13 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
           No commitments match your search
         </div>
       ) : (
-        <VirtualizedList
-          items={filteredCommitments}
-          itemHeight={72}
-          renderItem={renderItem}
-        />
+        <div className="flex-1 overflow-y-auto">
+          {filteredCommitments.map((commitment) => (
+            <div key={commitment.id}>
+              {renderItem(commitment)}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

@@ -102,13 +102,17 @@ function normalizeDrawing(item: RawDataItem): Drawing {
 
 function normalizeCommitment(item: RawDataItem): Commitment {
   const numericId = typeof item.id === 'string' ? parseInt(item.id, 10) : item.id!
+  
+  // Handle vendor which might be a string or object from Procore API
+  const vendorName = typeof item.vendor === 'string' ? item.vendor :
+    (typeof item.vendor === 'object' && item.vendor ? (item.vendor as { name?: string })?.name : undefined)
+  
   return {
     id: numericId as number,
     number: (item.number || '') as string,
     title: (item.title || '') as string,
-    vendor: item.vendor as string | undefined,
-    vendor_name: item.vendor_name || 
-      (typeof item.vendor === 'object' ? (item.vendor as { name?: string })?.name : undefined),
+    vendor: vendorName, // Now always a string or undefined
+    vendor_name: (item.vendor_name as string | undefined) || vendorName,
     status: item.status as string | undefined,
     contract_date: item.contract_date as string | undefined,
     type: item.type as string | undefined,

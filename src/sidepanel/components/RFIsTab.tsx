@@ -3,7 +3,6 @@ import type { RFI } from '@/types'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
 import { SearchInput } from './SearchInput'
-import { VirtualizedList } from './VirtualizedList'
 
 interface RFIsTabProps {
   projectId: string
@@ -200,11 +199,13 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
           No RFIs match your search
         </div>
       ) : (
-        <VirtualizedList
-          items={filteredRFIs}
-          itemHeight={72}
-          renderItem={renderItem}
-        />
+        <div className="flex-1 overflow-y-auto">
+          {filteredRFIs.map((rfi) => (
+            <div key={rfi.id}>
+              {renderItem(rfi)}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
