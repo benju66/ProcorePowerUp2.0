@@ -1,6 +1,10 @@
-import { useState, useRef } from 'preact/hooks'
+import { useState, useRef, useEffect, useCallback } from 'preact/hooks'
 import { Settings } from './Settings'
 import { useMascot } from '../contexts/MascotContext'
+import { useQuickNav } from '../hooks/useQuickNav'
+import { AVAILABLE_TOOLS } from '../utils/tools'
+import { StorageService } from '@/services'
+import { PREFERENCE_KEYS } from '@/types/preferences'
 import type { Project } from '@/types'
 
 interface HeaderProps {
@@ -13,9 +17,32 @@ interface HeaderProps {
 export function Header({ onPopOut, currentProjectId, projects = [], onProjectDeleted }: HeaderProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  const [openInBackground, setOpenInBackground] = useState(false)
   
   // Get mascot state from context
   const { mood, animationLevel, triggerMood } = useMascot()
+  
+  // Get Quick Nav state from hook
+  const { showToolButtons, visibleTools, toggleMaster, toggleTool } = useQuickNav()
+  
+  // Derive active project from props
+  const activeProject = projects.find(p => p.id === currentProjectId)
+
+  // Load openInBackground preference on mount
+  useEffect(() => {
+    StorageService.getPreferences<boolean>(PREFERENCE_KEYS.openInBackground, false)
+      .then(setOpenInBackground)
+      .catch(console.error)
+  }, [])
+
+  // Handle navigation button click
+  const handleNavClick = useCallback((url: string) => {
+    chrome.runtime.sendMessage({
+      action: 'OPEN_TAB',
+      url,
+      background: openInBackground
+    })
+  }, [openInBackground])
 
   // Calculate CSS class based on current mood and animation level
   const getMascotClass = () => {
@@ -53,7 +80,7 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
       
       {/* ⚡ MASCOT ICON ⚡ */}
       <div 
-        className="flex items-center gap-2 cursor-default group select-none"
+        className="flex items-center cursor-default group select-none shrink-0"
         onMouseEnter={() => {
           // Only trigger hover animation if not in active animation
           if (mood !== 'happy' && mood !== 'super') {
@@ -65,13 +92,50 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
         <div className={`text-xl transition-all duration-300 ${getMascotClass()}`}>
           ⚡
         </div>
-        <span className="font-bold text-sm text-gray-700 dark:text-gray-200 tracking-tight">
-          Power-Up
-        </span>
       </div>
 
+      {/* Quick Navigation Toolbar */}
+      {activeProject && showToolButtons && (
+        <div className="flex-1 flex items-center justify-center overflow-x-auto no-scrollbar mx-2">
+          <div className="flex items-center gap-0.5">
+            {AVAILABLE_TOOLS.map(tool => {
+              // Only show tools that are in visibleTools array
+              if (!visibleTools.includes(tool.id)) return null
+              
+              // Get URL for this tool - skip if null
+              const url = tool.getUrl(activeProject)
+              if (!url) return null
+              
+              return (
+                <button
+                  key={tool.id}
+                  onClick={() => handleNavClick(url)}
+                  className={`p-1.5 rounded-md text-gray-400 transition-colors ${tool.colorClass}`}
+                  title={tool.label}
+                  aria-label={tool.label}
+                >
+                  <svg 
+                    className="w-5 h-5" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d={tool.icon} 
+                    />
+                  </svg>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Right Side Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <button
           ref={settingsButtonRef}
           onClick={() => setSettingsOpen(!settingsOpen)}
@@ -105,6 +169,10 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
         currentProjectId={currentProjectId}
         projects={projects}
         onProjectDeleted={onProjectDeleted}
+        showToolButtons={showToolButtons}
+        visibleTools={visibleTools}
+        onToggleMaster={toggleMaster}
+        onToggleTool={toggleTool}
       />
     </header>
   )

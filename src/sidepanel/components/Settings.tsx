@@ -14,7 +14,9 @@ import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
 import { FolderInput } from './FolderInput'
 import { CollapsibleSection } from './CollapsibleSection'
+import { AVAILABLE_TOOLS } from '../utils/tools'
 import type { Project } from '@/types'
+import type { ToolId } from '@/types/tools'
 
 interface SettingsProps {
   isOpen: boolean
@@ -23,9 +25,25 @@ interface SettingsProps {
   currentProjectId?: string | null
   projects?: Project[]
   onProjectDeleted?: (projectId: string) => Promise<void>
+  // Quick Nav props
+  showToolButtons?: boolean
+  visibleTools?: ToolId[]
+  onToggleMaster?: (enabled: boolean) => void
+  onToggleTool?: (toolId: ToolId, checked: boolean) => void
 }
 
-export function Settings({ isOpen, onClose, buttonRef, currentProjectId, projects = [], onProjectDeleted }: SettingsProps) {
+export function Settings({ 
+  isOpen, 
+  onClose, 
+  buttonRef, 
+  currentProjectId, 
+  projects = [], 
+  onProjectDeleted,
+  showToolButtons = true,
+  visibleTools = [],
+  onToggleMaster,
+  onToggleTool,
+}: SettingsProps) {
   const { theme, setTheme } = useTheme()
   const { showRFIsTab, showCostTab, setShowRFIsTab, setShowCostTab } = useTabVisibility()
   const { animationLevel, setAnimationLevel, triggerMood } = useMascot()
@@ -366,6 +384,50 @@ export function Settings({ isOpen, onClose, buttonRef, currentProjectId, project
           </div>
         </CollapsibleSection>
       )}
+
+      {/* Quick Nav Section */}
+      <CollapsibleSection
+        title="Quick Nav"
+        icon="🚀"
+        preferenceKey={PREFERENCE_KEYS.settingsQuickNavExpanded}
+        defaultExpanded={false}
+      >
+        <div className="px-2 space-y-3">
+          {/* Master Toggle */}
+          <label className="flex items-center justify-between px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+            <span>Show Toolbar</span>
+            <input
+              type="checkbox"
+              checked={showToolButtons}
+              onChange={(e) => onToggleMaster?.((e.target as HTMLInputElement).checked)}
+              className="w-4 h-4 text-blue-600 rounded"
+            />
+          </label>
+          
+          {/* Tool Checklist - only show when master toggle is ON */}
+          {showToolButtons && (
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-2">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 px-2">Visible Tools</div>
+              <div className="grid grid-cols-2 gap-1">
+                {AVAILABLE_TOOLS.map((tool) => (
+                  <label
+                    key={tool.id}
+                    className="flex items-center gap-2 px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleTools.includes(tool.id)}
+                      onChange={(e) => onToggleTool?.(tool.id, (e.target as HTMLInputElement).checked)}
+                      className="w-3 h-3 text-blue-600 rounded"
+                    />
+                    <span className="truncate text-xs">{tool.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
 
       {/* Appearance Section */}
       <CollapsibleSection

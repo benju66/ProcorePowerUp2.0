@@ -5,6 +5,8 @@
  * Follows Single Responsibility Principle - types only.
  */
 
+import type { ToolId } from './tools'
+
 export type ThemeMode = 'light' | 'dark' | 'auto'
 export type ResolvedTheme = 'light' | 'dark'
 export type AnimationLevel = 'off' | 'subtle' | 'normal'
@@ -15,6 +17,8 @@ export interface UserPreferences {
   showRFIsTab: boolean
   showCostTab: boolean
   animationLevel: AnimationLevel
+  showHeaderToolButtons: boolean
+  visibleTools: ToolId[]
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
@@ -23,6 +27,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   showRFIsTab: false,
   showCostTab: false,
   animationLevel: 'normal',
+  showHeaderToolButtons: true,
+  visibleTools: ['home', 'drawings', 'submittals', 'rfis', 'directory'],
 }
 
 /**
@@ -37,10 +43,14 @@ export const PREFERENCE_KEYS = {
   recentsExpanded: 'recentsExpanded',
   favoritesExpanded: 'favoritesExpanded',
   animationLevel: 'animationLevel',
+  // Quick Nav toolbar
+  showHeaderToolButtons: 'showHeaderToolButtons',
+  visibleTools: 'visibleTools',
   // Settings collapsible sections
   settingsAppearanceExpanded: 'settingsAppearanceExpanded',
   settingsProjectsExpanded: 'settingsProjectsExpanded',
   settingsDataSyncExpanded: 'settingsDataSyncExpanded',
   settingsPreferencesExpanded: 'settingsPreferencesExpanded',
   settingsFavoritesExpanded: 'settingsFavoritesExpanded',
+  settingsQuickNavExpanded: 'settingsQuickNavExpanded',
 } as const
