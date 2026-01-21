@@ -220,8 +220,9 @@ export function useCommandPalette(
 
           // Sort disciplines by map index, then alphabetically
           const sortedGroups = Array.from(grouped.entries()).sort((a, b) => {
-            const discA = Object.values(disciplineMap).find(m => m.name === a[0])
-            const discB = Object.values(disciplineMap).find(m => m.name === b[0])
+            // Guard against undefined/null disciplineMap to prevent Object.values crash
+            const discA = disciplineMap ? Object.values(disciplineMap).find(m => m.name === a[0]) : undefined
+            const discB = disciplineMap ? Object.values(disciplineMap).find(m => m.name === b[0]) : undefined
             const indexA = discA?.index ?? 9999
             const indexB = discB?.index ?? 9999
             if (indexA !== indexB) return indexA - indexB
