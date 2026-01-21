@@ -76,7 +76,7 @@ export interface WiretapMessage {
 export interface TabInfo {
   id: 'drawings' | 'rfis' | 'cost'
   label: string
-  icon: string
+  icon: import('lucide-preact').LucideIcon
 }
 
 // Message types for communication between extension components

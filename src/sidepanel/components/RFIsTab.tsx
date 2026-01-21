@@ -3,6 +3,7 @@ import type { RFI } from '@/types'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
 import { SearchInput } from './SearchInput'
+import { Check, Loader2 } from 'lucide-preact'
 
 interface RFIsTabProps {
   projectId: string
@@ -133,7 +134,7 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+        <Loader2 className="animate-spin h-6 w-6 text-blue-600" />
       </div>
     )
   }
@@ -142,7 +143,7 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
     <div className="flex flex-col h-full">
       {lastCaptureCount !== null && (
         <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
-          <span className="text-green-500">✓</span>
+          <Check size={16} className="text-green-500" />
           <span>Captured {lastCaptureCount} new RFI{lastCaptureCount !== 1 ? 's' : ''}</span>
         </div>
       )}
@@ -154,7 +155,7 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
             : 'bg-blue-50 border-blue-200 text-blue-700'
         }`}>
           <div className="flex items-center gap-2 mb-1">
-            {isScanning && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />}
+            {isScanning && <Loader2 size={12} className="animate-spin" />}
             <span>{scanStatus}</span>
             {isScanning && <span className="ml-auto">{rfis.length} found</span>}
           </div>

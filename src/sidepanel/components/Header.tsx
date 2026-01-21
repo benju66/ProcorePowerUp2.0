@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'preact/hooks'
-import { Settings } from './Settings'
+import { Settings as SettingsPanel } from './Settings'
 import { useMascot } from '../contexts/MascotContext'
 import { useQuickNav } from '../hooks/useQuickNav'
 import { useDragToScroll } from '../hooks/useDragToScroll'
 import { AVAILABLE_TOOLS } from '../utils/tools'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
+import { Settings as SettingsIcon, ExternalLink } from 'lucide-preact'
 import type { Project } from '@/types'
 
 interface HeaderProps {
@@ -215,19 +216,7 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
                 aria-label={tool.label}
                 tabIndex={index === focusedToolIndex ? 0 : -1}
               >
-                <svg 
-                  className="w-5 h-5 pointer-events-none" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d={tool.icon} 
-                  />
-                </svg>
+                <tool.icon size={20} className="pointer-events-none" />
               </button>
             ))}
           </div>
@@ -244,10 +233,7 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
           aria-label="Settings"
           aria-expanded={settingsOpen}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
+          <SettingsIcon size={20} />
         </button>
         
         <button
@@ -256,13 +242,11 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
           title="Pop out to window"
           aria-label="Pop out to window"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
+          <ExternalLink size={20} />
         </button>
       </div>
 
-      <Settings
+      <SettingsPanel
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         buttonRef={settingsButtonRef}

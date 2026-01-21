@@ -18,6 +18,7 @@ import {
 } from '../hooks/useKeyboardNavigation'
 import { useDragAutoScroll } from '../hooks/useDragAutoScroll'
 import { getDisciplineColor } from '../utils/discipline'
+import { Folder, Check, ChevronRight, ChevronDown, Loader2 } from 'lucide-preact'
 
 // Fuzzy match helper for discipline prefix search
 function fuzzyMatch(text: string, pattern: string): boolean {
@@ -440,7 +441,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+        <Loader2 className="animate-spin h-6 w-6 text-blue-600" />
       </div>
     )
   }
@@ -462,7 +463,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
         }`}>
           <div className="flex items-center gap-2 mb-1">
-            {isScanning && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />}
+            {isScanning && <Loader2 size={12} className="animate-spin" />}
             <span>{scanStatus}</span>
             {isScanning && <span className="ml-auto">{drawings.length} found</span>}
           </div>
@@ -503,7 +504,7 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
             onClick={toggleExpandAll}
             className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1"
           >
-            <span className={`transition-transform ${allExpanded ? 'rotate-180' : ''}`}>▼</span>
+            <ChevronDown size={14} className={`transition-transform ${allExpanded ? 'rotate-180' : ''}`} />
             {allExpanded ? 'Collapse All' : 'Expand All'}
           </button>
         </div>
@@ -612,9 +613,10 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                     }
                   }}
                 >
-                  <span className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}>
-                    ▶
-                  </span>
+                  <ChevronRight
+                    size={16}
+                    className={`transition-transform text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}
+                  />
                   <span 
                     className={`w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center ${colorClass} cursor-pointer transition-transform hover:scale-110 hover:shadow-md ${
                       activeDisciplineFilter === name ? 'ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-1' : ''
@@ -762,10 +764,10 @@ export function DrawingsTab({ projectId, dataVersion = 0 }: DrawingsTabProps) {
                   }}
                   className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                 >
-                  <span className="text-yellow-500">📁</span>
+                  <Folder size={16} className="text-yellow-500" />
                   <span>{folder.name}</span>
                   {folder.drawings.includes(contextMenu.drawing.num) && (
-                    <span className="ml-auto text-xs text-gray-400">✓</span>
+                    <Check size={14} className="ml-auto text-gray-400" />
                   )}
                 </button>
               ))

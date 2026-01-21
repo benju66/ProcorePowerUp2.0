@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks'
+import { X } from 'lucide-preact'
 
 interface FolderInputProps {
   onSubmit: (name: string) => void
@@ -53,10 +54,10 @@ export function FolderInput({ onSubmit, onCancel }: FolderInputProps) {
       />
       <button
         onClick={onCancel}
-        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700"
         title="Cancel (Esc)"
       >
-        ×
+        <X size={16} />
       </button>
     </div>
   )

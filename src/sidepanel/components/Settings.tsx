@@ -15,6 +15,7 @@ import { PREFERENCE_KEYS } from '@/types/preferences'
 import { FolderInput } from './FolderInput'
 import { CollapsibleSection } from './CollapsibleSection'
 import { AVAILABLE_TOOLS } from '../utils/tools'
+import { FolderOpen, Rocket, Palette, RefreshCcw, SlidersHorizontal, Star, Trash2, Plus, X, Folder, Loader2 } from 'lucide-preact'
 import type { Project } from '@/types'
 import type { ToolId } from '@/types/tools'
 
@@ -342,7 +343,7 @@ export function Settings({
       {projects.length > 0 && (
         <CollapsibleSection
           title="Projects"
-          icon="📁"
+          icon={<FolderOpen size={16} />}
           preferenceKey={PREFERENCE_KEYS.settingsProjectsExpanded}
           defaultExpanded={true}
           badge={projects.length}
@@ -372,11 +373,9 @@ export function Settings({
                   title="Delete project"
                 >
                   {deletingProjectId === project.id ? (
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                    <Loader2 size={12} className="animate-spin" />
                   ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 size={16} />
                   )}
                 </button>
               </div>
@@ -388,7 +387,7 @@ export function Settings({
       {/* Quick Nav Section */}
       <CollapsibleSection
         title="Quick Nav"
-        icon="🚀"
+        icon={<Rocket size={16} />}
         preferenceKey={PREFERENCE_KEYS.settingsQuickNavExpanded}
         defaultExpanded={false}
       >
@@ -432,7 +431,7 @@ export function Settings({
       {/* Appearance Section */}
       <CollapsibleSection
         title="Appearance"
-        icon="🎨"
+        icon={<Palette size={16} />}
         preferenceKey={PREFERENCE_KEYS.settingsAppearanceExpanded}
         defaultExpanded={false}
       >
@@ -493,7 +492,7 @@ export function Settings({
       {currentProjectId && (
         <CollapsibleSection
           title="Data Sync"
-          icon="🔄"
+          icon={<RefreshCcw size={16} />}
           preferenceKey={PREFERENCE_KEYS.settingsDataSyncExpanded}
           defaultExpanded={false}
         >
@@ -505,7 +504,7 @@ export function Settings({
             >
               {scanState.isScanning && scanState.type === 'drawings' ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  <Loader2 size={16} className="animate-spin" />
                   <span>{scanState.percent}%</span>
                 </>
               ) : (
@@ -538,7 +537,7 @@ export function Settings({
               >
                 {scanState.isScanning && scanState.type === 'commitments' ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <Loader2 size={16} className="animate-spin" />
                     <span>{scanState.percent}%</span>
                   </>
                 ) : (
@@ -563,7 +562,7 @@ export function Settings({
       {/* Preferences Section */}
       <CollapsibleSection
         title="Preferences"
-        icon="⚙️"
+        icon={<SlidersHorizontal size={16} />}
         preferenceKey={PREFERENCE_KEYS.settingsPreferencesExpanded}
         defaultExpanded={false}
       >
@@ -616,7 +615,7 @@ export function Settings({
       {currentProjectId && (
         <CollapsibleSection
           title="Favorites"
-          icon="⭐"
+          icon={<Star size={16} />}
           preferenceKey={PREFERENCE_KEYS.settingsFavoritesExpanded}
           defaultExpanded={false}
           badge={folders.length}
@@ -632,7 +631,7 @@ export function Settings({
                 onClick={() => setShowFolderInput(true)}
                 className="w-full px-2 py-1.5 text-left text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-2"
               >
-                <span>+</span>
+                <Plus size={16} />
                 <span>New Folder</span>
               </button>
             )}
@@ -662,16 +661,16 @@ export function Settings({
                     }`}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-yellow-500 text-sm">📁</span>
+                      <Folder size={16} className="text-yellow-500" />
                       <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{folder.name}</span>
                       <span className="text-xs text-gray-400">({folder.drawings.length})</span>
                     </div>
                     <button
                       onClick={() => handleRemoveFolder(folder.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1"
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 px-1"
                       title="Delete folder"
                     >
-                      ×
+                      <X size={14} />
                     </button>
                   </div>
                 ))}

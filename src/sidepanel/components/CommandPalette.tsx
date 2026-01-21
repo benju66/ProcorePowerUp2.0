@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
 import { useCommandPalette } from '../hooks/useCommandPalette'
 import { getDisciplineColor } from '../utils/discipline'
+import { Loader2 } from 'lucide-preact'
 import type { CommandPaletteResult, Project } from '@/types'
 import type { CommandPaletteDataProvider } from '@/types/command-palette'
 
@@ -197,7 +198,7 @@ export function CommandPalette({
         <div className="flex-1 overflow-y-auto p-2">
           {isSearching ? (
             <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 dark:border-blue-400 mr-2" />
+              <Loader2 className="animate-spin h-6 w-6 text-blue-600 dark:text-blue-400 mr-2" />
               <span>Searching...</span>
             </div>
           ) : searchResults.length === 0 ? (

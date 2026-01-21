@@ -131,7 +131,7 @@ export function TabBar({ tabs, activeTab, onTabChange, onExitDown, onExitUp, aut
           role="tab"
           data-tab-button={tab.id}
         >
-          <span className="text-base">{tab.icon}</span>
+          <tab.icon size={18} />
           <span>{tab.label}</span>
           
           {/* Active indicator */}

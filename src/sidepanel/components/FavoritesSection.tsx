@@ -7,6 +7,7 @@ import { useFavorites } from '../hooks/useFavorites'
 import { navigateToNext, findParentHeader } from '../hooks/useKeyboardNavigation'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
+import { Star, Folder, ChevronRight, Plus, X } from 'lucide-preact'
 
 interface FavoritesSectionProps {
   folders: FavoriteFolder[]
@@ -133,10 +134,11 @@ export function FavoritesSection({ folders, drawings, projectId, onDrawingClick,
             }
           }}
         >
-          <span className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}>
-            ▶
-          </span>
-          <span className="text-base">⭐</span>
+          <ChevronRight
+            size={16}
+            className={`transition-transform text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}
+          />
+          <Star size={16} />
           <span className="font-medium text-sm text-gray-700 dark:text-gray-300 flex-1">
             Favorites
           </span>
@@ -152,10 +154,10 @@ export function FavoritesSection({ folders, drawings, projectId, onDrawingClick,
               setShowFolderInput(true)
               setIsExpanded(true)
             }}
-            className="px-2 py-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none"
+            className="px-2 py-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             title="New Folder"
           >
-            +
+            <Plus size={16} />
           </button>
         )}
       </div>
@@ -274,10 +276,11 @@ export function FavoritesSection({ folders, drawings, projectId, onDrawingClick,
                       }
                     }}
                   >
-                    <span className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${isFolderExpanded ? 'rotate-90' : ''}`}>
-                      ▶
-                    </span>
-                    <span className="text-yellow-500">📁</span>
+                    <ChevronRight
+                      size={16}
+                      className={`transition-transform text-gray-400 dark:text-gray-500 ${isFolderExpanded ? 'rotate-90' : ''}`}
+                    />
+                    <Folder size={16} className="text-yellow-500" />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       {folder.name}
                     </span>
@@ -376,10 +379,10 @@ export function FavoritesSection({ folders, drawings, projectId, onDrawingClick,
                             </span>
                             <button
                               onClick={(e) => handleRemoveFromFolder(e, folder.id, drawing.num)}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-xs px-2"
+                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:hover:text-red-400 px-2"
                               title="Remove from folder"
                             >
-                              ×
+                              <X size={14} />
                             </button>
                           </div>
                         )

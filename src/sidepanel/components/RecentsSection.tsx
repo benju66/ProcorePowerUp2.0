@@ -5,6 +5,7 @@ import { useStatusColors } from '../hooks/useStatusColors'
 import { navigateToNext, findParentHeader } from '../hooks/useKeyboardNavigation'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
+import { Clock, ChevronRight } from 'lucide-preact'
 
 interface RecentsSectionProps {
   recents: string[]
@@ -87,10 +88,11 @@ export function RecentsSection({ recents, drawings, projectId, onDrawingClick, s
           }
         }}
       >
-        <span className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}>
-          ▶
-        </span>
-        <span className="text-base">🕒</span>
+        <ChevronRight
+          size={16}
+          className={`transition-transform text-gray-400 dark:text-gray-500 ${isExpanded ? 'rotate-90' : ''}`}
+        />
+        <Clock size={16} />
         <span className="font-medium text-sm text-gray-700 dark:text-gray-300 flex-1">
           Recent
         </span>

@@ -10,11 +10,12 @@ import { ProjectSelector } from './components/ProjectSelector'
 import { CommandPalette } from './components/CommandPalette'
 import { FavoritesProvider } from './contexts/FavoritesContext'
 import { useTabVisibility } from './contexts/TabVisibilityContext'
+import { PencilRuler, HelpCircle, BadgeDollarSign, Loader2 } from 'lucide-preact'
 
 const TABS: TabInfo[] = [
-  { id: 'drawings', label: 'Drawings', icon: '📐' },
-  { id: 'rfis', label: 'RFIs', icon: '❓' },
-  { id: 'cost', label: 'Cost', icon: '💰' },
+  { id: 'drawings', label: 'Drawings', icon: PencilRuler },
+  { id: 'rfis', label: 'RFIs', icon: HelpCircle },
+  { id: 'cost', label: 'Cost', icon: BadgeDollarSign },
 ]
 
 // Helper to extract IDs from URL
@@ -263,7 +264,7 @@ export function App() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400" />
+        <Loader2 className="animate-spin h-8 w-8 text-blue-600 dark:text-blue-400" />
       </div>
     )
   }

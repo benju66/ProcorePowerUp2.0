@@ -6,12 +6,13 @@
  */
 
 import { useState, useEffect } from 'preact/hooks'
-import type { ComponentChildren } from 'preact'
+import type { ComponentChildren, VNode } from 'preact'
 import { StorageService } from '@/services'
+import { ChevronRight } from 'lucide-preact'
 
 interface CollapsibleSectionProps {
   title: string
-  icon?: string
+  icon?: VNode
   preferenceKey?: string
   defaultExpanded?: boolean
   children: ComponentChildren
@@ -55,13 +56,12 @@ export function CollapsibleSection({
         className="w-full flex items-center gap-2 px-2 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors rounded"
         aria-expanded={isExpanded}
       >
-        <span
-          className={`transition-transform text-xs text-gray-400 dark:text-gray-500 ${
+        <ChevronRight
+          size={16}
+          className={`transition-transform text-gray-400 dark:text-gray-500 ${
             isExpanded ? 'rotate-90' : ''
           }`}
-        >
-          ▶
-        </span>
+        />
         {icon && <span className="text-sm">{icon}</span>}
         <span className="flex-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
           {title}
