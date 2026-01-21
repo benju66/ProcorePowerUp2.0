@@ -6,10 +6,11 @@ interface TabBarProps {
   activeTab: TabInfo['id']
   onTabChange: (tab: TabInfo['id']) => void
   onExitDown?: () => void
+  onExitUp?: () => void
   autoFocus?: boolean
 }
 
-export function TabBar({ tabs, activeTab, onTabChange, onExitDown, autoFocus = false }: TabBarProps) {
+export function TabBar({ tabs, activeTab, onTabChange, onExitDown, onExitUp, autoFocus = false }: TabBarProps) {
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const activeTabRef = useRef<HTMLButtonElement | null>(null)
 
@@ -57,6 +58,13 @@ export function TabBar({ tabs, activeTab, onTabChange, onExitDown, autoFocus = f
         e.preventDefault()
         // Exit to search input
         onExitDown?.()
+        break
+      }
+      
+      case 'ArrowUp': {
+        e.preventDefault()
+        // Exit to toolbar (if available)
+        onExitUp?.()
         break
       }
       

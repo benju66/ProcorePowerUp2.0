@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'preact/hooks'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'preact/hooks'
 import { Settings } from './Settings'
 import { useMascot } from '../contexts/MascotContext'
 import { useQuickNav } from '../hooks/useQuickNav'
+import { useDragToScroll } from '../hooks/useDragToScroll'
 import { AVAILABLE_TOOLS } from '../utils/tools'
 import { StorageService } from '@/services'
 import { PREFERENCE_KEYS } from '@/types/preferences'
@@ -17,7 +18,9 @@ interface HeaderProps {
 export function Header({ onPopOut, currentProjectId, projects = [], onProjectDeleted }: HeaderProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
   const [openInBackground, setOpenInBackground] = useState(false)
+  const [focusedToolIndex, setFocusedToolIndex] = useState(0)
   
   // Get mascot state from context
   const { mood, animationLevel, triggerMood } = useMascot()
@@ -28,6 +31,18 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
   // Derive active project from props
   const activeProject = projects.find(p => p.id === currentProjectId)
 
+  // Get visible tools with valid URLs
+  const visibleToolsWithUrls = useMemo(() => {
+    if (!activeProject) return []
+    return AVAILABLE_TOOLS
+      .filter(tool => visibleTools.includes(tool.id))
+      .map(tool => ({ ...tool, url: tool.getUrl(activeProject) }))
+      .filter(tool => tool.url !== null)
+  }, [activeProject, visibleTools])
+
+  // Drag-to-scroll functionality
+  const { onMouseDown, onMouseMove, onMouseUp, onMouseLeave, shouldPreventClick } = useDragToScroll(toolbarRef)
+
   // Load openInBackground preference on mount
   useEffect(() => {
     StorageService.getPreferences<boolean>(PREFERENCE_KEYS.openInBackground, false)
@@ -37,12 +52,90 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
 
   // Handle navigation button click
   const handleNavClick = useCallback((url: string) => {
+    // Prevent click if it was actually a drag
+    if (shouldPreventClick()) return
+    
     chrome.runtime.sendMessage({
       action: 'OPEN_TAB',
       url,
       background: openInBackground
     })
-  }, [openInBackground])
+  }, [openInBackground, shouldPreventClick])
+
+  // Keyboard navigation for toolbar
+  const handleToolbarKeyDown = useCallback((e: KeyboardEvent) => {
+    const toolCount = visibleToolsWithUrls.length
+    if (toolCount === 0) return
+
+    switch (e.key) {
+      case 'ArrowLeft': {
+        e.preventDefault()
+        // Stop at start (non-circular)
+        if (focusedToolIndex === 0) return
+        const prevIndex = focusedToolIndex - 1
+        setFocusedToolIndex(prevIndex)
+        // Focus the button and scroll into view
+        const buttons = toolbarRef.current?.querySelectorAll<HTMLButtonElement>('[data-tool-button]')
+        const button = buttons?.[prevIndex]
+        button?.focus()
+        button?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+        break
+      }
+      
+      case 'ArrowRight': {
+        e.preventDefault()
+        // Stop at end (non-circular)
+        if (focusedToolIndex === toolCount - 1) return
+        const nextIndex = focusedToolIndex + 1
+        setFocusedToolIndex(nextIndex)
+        // Focus the button and scroll into view
+        const buttons = toolbarRef.current?.querySelectorAll<HTMLButtonElement>('[data-tool-button]')
+        const button = buttons?.[nextIndex]
+        button?.focus()
+        button?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+        break
+      }
+      
+      case 'ArrowDown': {
+        e.preventDefault()
+        // Exit to TabBar
+        const activeTabButton = document.querySelector<HTMLElement>('[data-tab-button][aria-selected="true"]')
+        activeTabButton?.focus()
+        break
+      }
+      
+      case 'Enter':
+      case ' ': {
+        e.preventDefault()
+        const tool = visibleToolsWithUrls[focusedToolIndex]
+        if (tool?.url) {
+          handleNavClick(tool.url)
+        }
+        break
+      }
+      
+      case 'Home': {
+        e.preventDefault()
+        setFocusedToolIndex(0)
+        const buttons = toolbarRef.current?.querySelectorAll<HTMLButtonElement>('[data-tool-button]')
+        const button = buttons?.[0]
+        button?.focus()
+        button?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+        break
+      }
+      
+      case 'End': {
+        e.preventDefault()
+        const lastIndex = toolCount - 1
+        setFocusedToolIndex(lastIndex)
+        const buttons = toolbarRef.current?.querySelectorAll<HTMLButtonElement>('[data-tool-button]')
+        const button = buttons?.[lastIndex]
+        button?.focus()
+        button?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+        break
+      }
+    }
+  }, [focusedToolIndex, visibleToolsWithUrls, handleNavClick])
 
   // Calculate CSS class based on current mood and animation level
   const getMascotClass = () => {
@@ -75,6 +168,9 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
     }
   }
 
+  // Check if toolbar is visible and has tools
+  const showToolbar = activeProject && showToolButtons && visibleToolsWithUrls.length > 0
+
   return (
     <header className="flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 relative z-30">
       
@@ -95,41 +191,45 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
       </div>
 
       {/* Quick Navigation Toolbar */}
-      {activeProject && showToolButtons && (
-        <div className="flex-1 flex items-center justify-center overflow-x-auto no-scrollbar mx-2">
+      {showToolbar && (
+        <div 
+          ref={toolbarRef}
+          className="flex-1 flex items-center justify-center overflow-x-auto no-scrollbar mx-2 cursor-grab"
+          role="toolbar"
+          aria-label="Quick navigation"
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
+        >
           <div className="flex items-center gap-0.5">
-            {AVAILABLE_TOOLS.map(tool => {
-              // Only show tools that are in visibleTools array
-              if (!visibleTools.includes(tool.id)) return null
-              
-              // Get URL for this tool - skip if null
-              const url = tool.getUrl(activeProject)
-              if (!url) return null
-              
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => handleNavClick(url)}
-                  className={`p-1.5 rounded-md text-gray-400 transition-colors ${tool.colorClass}`}
-                  title={tool.label}
-                  aria-label={tool.label}
+            {visibleToolsWithUrls.map((tool, index) => (
+              <button
+                key={tool.id}
+                data-tool-button={tool.id}
+                onClick={() => handleNavClick(tool.url!)}
+                onKeyDown={handleToolbarKeyDown}
+                onFocus={() => setFocusedToolIndex(index)}
+                className={`p-1.5 rounded-md text-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 ${tool.colorClass}`}
+                title={tool.label}
+                aria-label={tool.label}
+                tabIndex={index === focusedToolIndex ? 0 : -1}
+              >
+                <svg 
+                  className="w-5 h-5 pointer-events-none" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
                 >
-                  <svg 
-                    className="w-5 h-5" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d={tool.icon} 
-                    />
-                  </svg>
-                </button>
-              )
-            })}
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d={tool.icon} 
+                  />
+                </svg>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -176,4 +276,13 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
       />
     </header>
   )
+}
+
+/**
+ * Focus the first tool button in the toolbar.
+ * Call this from other components to move focus to toolbar.
+ */
+export function focusToolbar(): void {
+  const firstToolButton = document.querySelector<HTMLElement>('[data-tool-button]')
+  firstToolButton?.focus()
 }

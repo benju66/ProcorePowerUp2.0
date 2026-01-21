@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'preact/hooks'
 import type { TabInfo, Project } from '@/types'
 import { StorageService } from '@/services'
-import { Header } from './components/Header'
+import { Header, focusToolbar } from './components/Header'
 import { TabBar } from './components/TabBar'
 import { DrawingsTab } from './components/DrawingsTab'
 import { RFIsTab } from './components/RFIsTab'
@@ -298,6 +298,10 @@ export function App() {
             // Focus the search input in the active tab
             const searchInput = document.querySelector<HTMLInputElement>('[data-search-input]')
             searchInput?.focus()
+          }}
+          onExitUp={() => {
+            // Focus the toolbar (if visible)
+            focusToolbar()
           }}
         />
 
