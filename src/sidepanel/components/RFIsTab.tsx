@@ -79,13 +79,23 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
 
   const filteredRFIs = useMemo(() => {
     if (!searchQuery.trim()) return rfis
-    const query = searchQuery.toLowerCase()
-    return rfis.filter(r => 
-      r.number?.toLowerCase().includes(query) ||
-      r.subject?.toLowerCase().includes(query) ||
-      r.status?.toLowerCase().includes(query) ||
-      r.assignee?.toLowerCase().includes(query)
-    )
+    
+    // Split query into words - all must match
+    const words = searchQuery.toLowerCase().split(/\s+/).filter(Boolean)
+    
+    return rfis.filter(r => {
+      const number = r.number?.toLowerCase() || ''
+      // Combine text fields for substring matching
+      const textFields = [r.subject, r.status, r.assignee]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      
+      // Each word must match: prefix of number OR substring of text fields
+      return words.every(word => 
+        number.startsWith(word) || textFields.includes(word)
+      )
+    })
   }, [rfis, searchQuery])
 
 
@@ -142,8 +152,8 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
   return (
     <div className="flex flex-col h-full">
       {lastCaptureCount !== null && (
-        <div className="px-3 py-2 bg-green-50 border-b border-green-200 text-sm text-green-700 flex items-center gap-2">
-          <Check size={16} className="text-green-500" />
+        <div className="px-3 py-2 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+          <Check size={16} className="text-green-500 dark:text-green-400" />
           <span>Captured {lastCaptureCount} new RFI{lastCaptureCount !== 1 ? 's' : ''}</span>
         </div>
       )}
@@ -151,8 +161,8 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
       {scanStatus && (
         <div className={`px-3 py-2 border-b text-sm ${
           scanStatus.startsWith('Error') 
-            ? 'bg-red-50 border-red-200 text-red-700' 
-            : 'bg-blue-50 border-blue-200 text-blue-700'
+            ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' 
+            : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
         }`}>
           <div className="flex items-center gap-2 mb-1">
             {isScanning && <Loader2 size={12} className="animate-spin" />}
@@ -160,9 +170,9 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
             {isScanning && <span className="ml-auto">{rfis.length} found</span>}
           </div>
           {isScanning && (
-            <div className="w-full bg-blue-200 rounded-full h-1.5">
+            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
               <div 
-                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-300" 
                 style={{ width: `${scanPercent}%` }}
               />
             </div>
@@ -170,7 +180,7 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
         </div>
       )}
       
-      <div className="p-3 border-b border-gray-200 bg-white">
+      <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div className="flex gap-2 mb-2">
           <div className="flex-1">
             <SearchInput

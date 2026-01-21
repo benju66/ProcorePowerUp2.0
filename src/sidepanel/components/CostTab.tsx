@@ -112,17 +112,26 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
 
   const filteredCommitments = useMemo(() => {
     if (!searchQuery.trim()) return commitments
-    const query = searchQuery.toLowerCase()
+    
+    // Split query into words - all must match
+    const words = searchQuery.toLowerCase().split(/\s+/).filter(Boolean)
+    
     return commitments.filter(c => {
+      const number = c.number?.toLowerCase() || ''
+      
       // Handle vendor which might be a string or object from Procore API
       const vendorStr = typeof c.vendor === 'string' ? c.vendor : 
         (c.vendor && typeof c.vendor === 'object' ? (c.vendor as { name?: string }).name : undefined)
       
-      return (
-        c.number?.toLowerCase().includes(query) ||
-        c.title?.toLowerCase().includes(query) ||
-        c.vendor_name?.toLowerCase().includes(query) ||
-        vendorStr?.toLowerCase().includes(query)
+      // Combine text fields for substring matching
+      const textFields = [c.title, c.vendor_name, vendorStr]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      
+      // Each word must match: prefix of number OR substring of text fields
+      return words.every(word => 
+        number.startsWith(word) || textFields.includes(word)
       )
     })
   }, [commitments, searchQuery])
