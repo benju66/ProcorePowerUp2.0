@@ -68,11 +68,20 @@ export function useQuickNav() {
     })
   }, [])
 
+  // Reorder tools (for drag-and-drop)
+  const reorderTools = useCallback((newOrder: ToolId[]) => {
+    setVisibleTools(newOrder)
+    // Save to storage (fire and forget, errors logged)
+    StorageService.savePreference(PREFERENCE_KEYS.visibleTools, newOrder)
+      .catch(error => console.error('Failed to save visibleTools order:', error))
+  }, [])
+
   return {
     showToolButtons,
     visibleTools,
     toggleMaster,
     toggleTool,
+    reorderTools,
     isLoading,
   }
 }

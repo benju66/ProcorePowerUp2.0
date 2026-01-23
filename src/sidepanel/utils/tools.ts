@@ -17,6 +17,7 @@ import {
   FileDiff,
   Image,
   Receipt,
+  Presentation,
   CalendarDays,
   ListTodo,
   Files,
@@ -144,11 +145,18 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
   {
     id: 'meetings',
     label: 'Meetings',
-    icon: CalendarDays,
+    icon: Presentation,
     colorClass: 'hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30',
     getUrl: (p) => p.companyId 
       ? `https://app.procore.com/webclients/host/companies/${p.companyId}/projects/${p.id}/tools/meetings/list` 
       : null
+  },
+  {
+    id: 'schedule',
+    label: 'Schedule',
+    icon: CalendarDays,
+    colorClass: 'hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30',
+    getUrl: (p) => `https://app.procore.com/${p.id}/project/calendar`
   },
   {
     id: 'punch',

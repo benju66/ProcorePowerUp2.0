@@ -27,16 +27,18 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
   const { mood, animationLevel, triggerMood } = useMascot()
   
   // Get Quick Nav state from hook
-  const { showToolButtons, visibleTools, toggleMaster, toggleTool } = useQuickNav()
+  const { showToolButtons, visibleTools, toggleMaster, toggleTool, reorderTools } = useQuickNav()
   
   // Derive active project from props
   const activeProject = projects.find(p => p.id === currentProjectId)
 
-  // Get visible tools with valid URLs
+  // Get visible tools with valid URLs (respects user's custom order)
   const visibleToolsWithUrls = useMemo(() => {
     if (!activeProject) return []
-    return AVAILABLE_TOOLS
-      .filter(tool => visibleTools.includes(tool.id))
+    // Map from visibleTools order to preserve user's arrangement
+    return visibleTools
+      .map(toolId => AVAILABLE_TOOLS.find(t => t.id === toolId))
+      .filter((tool): tool is NonNullable<typeof tool> => tool !== undefined)
       .map(tool => ({ ...tool, url: tool.getUrl(activeProject) }))
       .filter(tool => tool.url !== null)
   }, [activeProject, visibleTools])
@@ -257,6 +259,7 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
         visibleTools={visibleTools}
         onToggleMaster={toggleMaster}
         onToggleTool={toggleTool}
+        onReorderTools={reorderTools}
       />
     </header>
   )

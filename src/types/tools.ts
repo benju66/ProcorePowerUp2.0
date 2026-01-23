@@ -19,6 +19,7 @@ export type ToolId =
   | 'photos' 
   | 'invoicing' 
   | 'meetings' 
+  | 'schedule'
   | 'punch' 
   | 'documents' 
   | 'dailylog'
