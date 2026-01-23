@@ -195,7 +195,7 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
       {showToolbar && (
         <div 
           ref={toolbarRef}
-          className="flex-1 flex items-center justify-center overflow-x-auto no-scrollbar mx-2 cursor-grab"
+          className="flex-1 flex items-center justify-center-safe overflow-x-auto no-scrollbar mx-2 cursor-grab"
           role="toolbar"
           aria-label="Quick navigation"
           onMouseDown={onMouseDown}
@@ -203,7 +203,7 @@ export function Header({ onPopOut, currentProjectId, projects = [], onProjectDel
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseLeave}
         >
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 px-2">
             {visibleToolsWithUrls.map((tool, index) => (
               <button
                 key={tool.id}

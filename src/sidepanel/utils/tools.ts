@@ -6,12 +6,12 @@
 
 import {
   Home,
-  ScrollText,
-  BookOpen,
+  PencilRuler,
+  FileText,
   ClipboardList,
-  MessageCircleQuestion,
+  HelpCircle,
   Users,
-  Calculator,
+  BadgeDollarSign,
   FileSignature,
   Handshake,
   FileDiff,
@@ -47,7 +47,7 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
   {
     id: 'drawings',
     label: 'Drawings',
-    icon: ScrollText,
+    icon: PencilRuler,
     colorClass: 'hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
     getUrl: (p) => p.companyId 
       ? (p.drawingAreaId 
@@ -58,7 +58,7 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
   {
     id: 'specs',
     label: 'Specifications',
-    icon: BookOpen,
+    icon: FileText,
     colorClass: 'hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30',
     getUrl: (p) => p.companyId 
       ? `https://app.procore.com/webclients/host/companies/${p.companyId}/projects/${p.id}/tools/specifications/specification_sections` 
@@ -76,7 +76,7 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
   {
     id: 'rfis',
     label: 'RFIs',
-    icon: MessageCircleQuestion,
+    icon: HelpCircle,
     colorClass: 'hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30',
     getUrl: (p) => p.companyId 
       ? `https://app.procore.com/webclients/host/companies/${p.companyId}/projects/${p.id}/tools/rfis` 
@@ -92,7 +92,7 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
   {
     id: 'budget',
     label: 'Budget',
-    icon: Calculator,
+    icon: BadgeDollarSign,
     colorClass: 'hover:text-green-700 dark:hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30',
     getUrl: (p) => p.companyId 
       ? `https://app.procore.com/webclients/host/companies/${p.companyId}/projects/${p.id}/tools/budgets` 
