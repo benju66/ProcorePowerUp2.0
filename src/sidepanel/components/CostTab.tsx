@@ -28,7 +28,7 @@ function formatCurrency(amount: number | undefined): string {
  */
 function getCommitmentUrlType(commitment: Commitment): string {
   const type = commitment.type?.toLowerCase() || ''
-  const number = commitment.number?.toUpperCase() || ''
+  const number = String(commitment.number ?? '').toUpperCase()
   
   // Check type field first (API may return values like 'PurchaseOrderContract', 'WorkOrderContract')
   if (type.includes('purchase') || type.includes('purchaseorder')) {
@@ -117,7 +117,7 @@ export function CostTab({ projectId, dataVersion = 0 }: CostTabProps) {
     const words = searchQuery.toLowerCase().split(/\s+/).filter(Boolean)
     
     return commitments.filter(c => {
-      const number = c.number?.toLowerCase() || ''
+      const number = String(c.number ?? '').toLowerCase()
       
       // Handle vendor which might be a string or object from Procore API
       const vendorStr = typeof c.vendor === 'string' ? c.vendor : 

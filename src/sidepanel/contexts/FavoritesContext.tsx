@@ -8,6 +8,7 @@ interface FavoritesContextValue {
   isLoading: boolean
   addFolder: (name: string) => Promise<FavoriteFolder>
   removeFolder: (folderId: number) => Promise<void>
+  reorderFolders: (newOrderIds: number[]) => Promise<void>
   addDrawingToFolder: (folderId: number, drawingNum: string) => Promise<boolean>
   removeDrawingFromFolder: (folderId: number, drawingNum: string) => Promise<void>
   getAllFavoriteDrawings: () => Set<string>
@@ -55,6 +56,18 @@ export function FavoritesProvider({ children, projectId }: FavoritesProviderProp
     await loadFavorites()
   }, [projectId, loadFavorites])
 
+  const reorderFolders = useCallback(async (newOrderIds: number[]) => {
+    if (!projectId) return
+    // Reorder folders based on the new order of IDs
+    const reordered = newOrderIds
+      .map(id => folders.find(f => f.id === id))
+      .filter((f): f is FavoriteFolder => f !== undefined)
+    // Optimistic update
+    setFolders(reordered)
+    // Persist to storage
+    await StorageService.saveFavorites(projectId, { folders: reordered })
+  }, [projectId, folders])
+
   const addDrawingToFolder = useCallback(async (folderId: number, drawingNum: string) => {
     if (!projectId) return false
     const success = await StorageService.addDrawingToFolder(projectId, folderId, drawingNum)
@@ -82,6 +95,7 @@ export function FavoritesProvider({ children, projectId }: FavoritesProviderProp
       isLoading,
       addFolder,
       removeFolder,
+      reorderFolders,
       addDrawingToFolder,
       removeDrawingFromFolder,
       getAllFavoriteDrawings,

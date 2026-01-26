@@ -242,6 +242,209 @@ function QuickNavSection({
   )
 }
 
+// Sortable folder item for Settings Favorites section
+interface SortableFolderItemSettingsProps {
+  folder: { id: number; name: string; drawings: string[] }
+  dragOverFolderId: number | null
+  onRemoveFolder: (folderId: number) => void
+  onDragOver: (e: DragEvent) => void
+  onDragLeave: () => void
+  onDrop: (e: DragEvent) => void
+}
+
+function SortableFolderItemSettings({
+  folder,
+  dragOverFolderId,
+  onRemoveFolder,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: SortableFolderItemSettingsProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: folder.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  // Cast attributes and listeners for Preact compatibility
+  const dragHandleProps = {
+    ...(attributes as unknown as Record<string, unknown>),
+    ...(listeners as unknown as Record<string, unknown>),
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={`px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-1 group transition-colors ${
+        dragOverFolderId === folder.id ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : ''
+      } ${isDragging ? 'z-50 bg-white dark:bg-gray-800 shadow-lg' : ''}`}
+    >
+      <button
+        type="button"
+        className="p-0.5 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 touch-none"
+        {...dragHandleProps}
+      >
+        <GripVertical size={14} />
+      </button>
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <Folder size={16} className="text-yellow-500" />
+        <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{folder.name}</span>
+        <span className="text-xs text-gray-400">({folder.drawings.length})</span>
+      </div>
+      <button
+        onClick={() => onRemoveFolder(folder.id)}
+        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 px-1"
+        title="Delete folder"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  )
+}
+
+// Favorites Folders Section with drag-and-drop reordering
+interface FavoritesFoldersSectionProps {
+  folders: { id: number; name: string; drawings: string[] }[]
+  isLoading: boolean
+  showFolderInput: boolean
+  setShowFolderInput: (show: boolean) => void
+  dragOverFolderId: number | null
+  setDragOverFolderId: (id: number | null) => void
+  onFolderSubmit: (name: string) => void
+  onRemoveFolder: (folderId: number) => void
+  onAddDrawingToFolder: (folderId: number, drawingNum: string) => Promise<boolean>
+  onReorderFolders: (newOrderIds: number[]) => Promise<void>
+}
+
+function FavoritesFoldersSection({
+  folders,
+  isLoading,
+  showFolderInput,
+  setShowFolderInput,
+  dragOverFolderId,
+  setDragOverFolderId,
+  onFolderSubmit,
+  onRemoveFolder,
+  onAddDrawingToFolder,
+  onReorderFolders,
+}: FavoritesFoldersSectionProps) {
+  // Configure sensors for drag interactions
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Handle drag end - reorder folders
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    
+    if (over && active.id !== over.id) {
+      const folderIds = folders.map(f => f.id)
+      const oldIndex = folderIds.indexOf(active.id as number)
+      const newIndex = folderIds.indexOf(over.id as number)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(folderIds, oldIndex, newIndex)
+        onReorderFolders(newOrder)
+      }
+    }
+  }
+
+  return (
+    <CollapsibleSection
+      title="Favorites"
+      icon={<Star size={16} />}
+      preferenceKey={PREFERENCE_KEYS.settingsFavoritesExpanded}
+      defaultExpanded={false}
+      badge={folders.length}
+    >
+      <div className="px-2">
+        {showFolderInput ? (
+          <FolderInput
+            onSubmit={onFolderSubmit}
+            onCancel={() => setShowFolderInput(false)}
+          />
+        ) : (
+          <button
+            onClick={() => setShowFolderInput(true)}
+            className="w-full px-2 py-1.5 text-left text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-2"
+          >
+            <Plus size={16} />
+            <span>New Folder</span>
+          </button>
+        )}
+
+        {!isLoading && folders.length > 0 && (
+          <div className="mt-2 space-y-0.5 max-h-32 overflow-y-auto">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 px-2">
+              Drag to reorder
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={folders.map(f => f.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {folders.map(folder => (
+                  <SortableFolderItemSettings
+                    key={folder.id}
+                    folder={folder}
+                    dragOverFolderId={dragOverFolderId}
+                    onRemoveFolder={onRemoveFolder}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setDragOverFolderId(folder.id)
+                    }}
+                    onDragLeave={() => setDragOverFolderId(null)}
+                    onDrop={async (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setDragOverFolderId(null)
+                      const drawingNum = e.dataTransfer?.getData("text/plain")
+                      if (drawingNum) {
+                        await onAddDrawingToFolder(folder.id, drawingNum)
+                      }
+                    }}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          </div>
+        )}
+
+        {!isLoading && folders.length === 0 && !showFolderInput && (
+          <div className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
+            No folders yet.
+          </div>
+        )}
+      </div>
+    </CollapsibleSection>
+  )
+}
+
 export function Settings({ 
   isOpen, 
   onClose, 
@@ -258,7 +461,7 @@ export function Settings({
   const { theme, setTheme } = useTheme()
   const { showRFIsTab, showCostTab, showSpecificationsTab, setShowRFIsTab, setShowCostTab, setShowSpecificationsTab } = useTabVisibility()
   const { animationLevel, setAnimationLevel, triggerMood } = useMascot()
-  const { folders, addFolder, removeFolder, addDrawingToFolder, isLoading: favoritesLoading } = useFavorites()
+  const { folders, addFolder, removeFolder, addDrawingToFolder, reorderFolders, isLoading: favoritesLoading } = useFavorites()
   const [openInBackground, setOpenInBackground] = useState(false)
   const [showFloatingButton, setShowFloatingButton] = useState(true)
   const [showFolderInput, setShowFolderInput] = useState(false)
@@ -821,77 +1024,18 @@ export function Settings({
 
       {/* Favorites Section */}
       {currentProjectId && (
-        <CollapsibleSection
-          title="Favorites"
-          icon={<Star size={16} />}
-          preferenceKey={PREFERENCE_KEYS.settingsFavoritesExpanded}
-          defaultExpanded={false}
-          badge={folders.length}
-        >
-          <div className="px-2">
-            {showFolderInput ? (
-              <FolderInput
-                onSubmit={handleFolderSubmit}
-                onCancel={() => setShowFolderInput(false)}
-              />
-            ) : (
-              <button
-                onClick={() => setShowFolderInput(true)}
-                className="w-full px-2 py-1.5 text-left text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-2"
-              >
-                <Plus size={16} />
-                <span>New Folder</span>
-              </button>
-            )}
-
-            {!favoritesLoading && folders.length > 0 && (
-              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-                {folders.map(folder => (
-                  <div
-                    key={folder.id}
-                    onDragOver={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setDragOverFolderId(folder.id)
-                    }}
-                    onDragLeave={() => setDragOverFolderId(null)}
-                    onDrop={async (e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setDragOverFolderId(null)
-                      const drawingNum = e.dataTransfer?.getData("text/plain")
-                      if (drawingNum) {
-                        await addDrawingToFolder(folder.id, drawingNum)
-                      }
-                    }}
-                    className={`px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between group transition-colors ${
-                      dragOverFolderId === folder.id ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <Folder size={16} className="text-yellow-500" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{folder.name}</span>
-                      <span className="text-xs text-gray-400">({folder.drawings.length})</span>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveFolder(folder.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 px-1"
-                      title="Delete folder"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!favoritesLoading && folders.length === 0 && !showFolderInput && (
-              <div className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
-                No folders yet.
-              </div>
-            )}
-          </div>
-        </CollapsibleSection>
+        <FavoritesFoldersSection
+          folders={folders}
+          isLoading={favoritesLoading}
+          showFolderInput={showFolderInput}
+          setShowFolderInput={setShowFolderInput}
+          dragOverFolderId={dragOverFolderId}
+          setDragOverFolderId={setDragOverFolderId}
+          onFolderSubmit={handleFolderSubmit}
+          onRemoveFolder={handleRemoveFolder}
+          onAddDrawingToFolder={addDrawingToFolder}
+          onReorderFolders={reorderFolders}
+        />
       )}
     </div>
   )

@@ -84,7 +84,7 @@ export function RFIsTab({ projectId, dataVersion = 0 }: RFIsTabProps) {
     const words = searchQuery.toLowerCase().split(/\s+/).filter(Boolean)
     
     return rfis.filter(r => {
-      const number = r.number?.toLowerCase() || ''
+      const number = String(r.number ?? '').toLowerCase()
       // Combine text fields for substring matching
       const textFields = [r.subject, r.status, r.assignee]
         .filter(Boolean)
